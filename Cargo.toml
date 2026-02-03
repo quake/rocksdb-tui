@@ -4,7 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [".", "crates/rocksdb-tui-plugin-sdk", "crates/demo-types", "crates/demo-parser"]
+members = [
+    ".",
+    "crates/rocksdb-tui-plugin-sdk",
+    "crates/demo-types",
+    "crates/demo-parser",
+    "crates/fiber-types",
+    "crates/fiber-parser",
+]
 
 [dependencies]
 rocksdb = "0.22"

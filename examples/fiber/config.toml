@@ -8,15 +8,12 @@
 # Key format: [prefix: 1 byte][type-specific key data]
 # The plugin inspects key[0] to determine how to parse the value.
 #
-# To use this config:
-# 1. Build the fiber-parser WASM plugin (see crates/fiber-parser/)
-# 2. Copy the .wasm file to ~/.config/rocksdb-tui/plugins/
-# 3. Run: rocksdb-tui --db /path/to/fiber/store --config examples/fiber/config.toml
+# Build the plugin:
+#   cargo build --release --target wasm32-unknown-unknown -p fiber-parser
+#   cp target/wasm32-unknown-unknown/release/fiber_parser.wasm examples/fiber/
 
 [plugins]
-wasm = [
-    "~/.config/rocksdb-tui/plugins/fiber-parser.wasm"
-]
+wasm = ["examples/fiber/fiber_parser.wasm"]
 
 # Fiber uses a single default column family with prefix-based routing
 [[column_families]]
@@ -25,13 +22,7 @@ key_schema = "hex"           # Show key as hex (includes prefix byte)
 value_format = "fiber"       # Plugin routes by key[0] prefix
 
 # Known key prefixes in Fiber (for reference):
-# 0x00 - Channel actor state
+# 0x00 - Channel state
 # 0x01 - Payment sessions  
 # 0x02 - Peer info
-# 0x03 - Channel announcements
-# 0x04 - Node announcements
 # 0x05 - Invoices
-# 0x06 - Watchtower data
-# 0x07 - Graph nodes
-# 0x08 - Graph edges
-# ... (see Fiber source for complete list)
