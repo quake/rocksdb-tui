@@ -1,24 +1,14 @@
-use crate::config::KeyFormat;
+use crate::parser::key_schema::KeySchema;
 
-pub fn parse_key(data: &[u8], format: &KeyFormat) -> String {
-    match format {
-        KeyFormat::String => String::from_utf8_lossy(data).to_string(),
-        KeyFormat::Hex => super::hex_encode(data),
-        KeyFormat::U64Be => {
-            if data.len() == 8 {
-                let arr: [u8; 8] = data.try_into().unwrap();
-                u64::from_be_bytes(arr).to_string()
-            } else {
-                super::hex_encode(data)
-            }
-        }
-        KeyFormat::U64Le => {
-            if data.len() == 8 {
-                let arr: [u8; 8] = data.try_into().unwrap();
-                u64::from_le_bytes(arr).to_string()
-            } else {
-                super::hex_encode(data)
-            }
-        }
+/// Parse a key using a schema, or fall back to hex
+pub fn parse_key_with_schema(data: &[u8], schema: Option<&KeySchema>) -> String {
+    match schema {
+        Some(s) => s.decode(data),
+        None => super::hex_encode(data),
     }
+}
+
+/// Simple hex encoding for fallback
+pub fn parse_key_hex(data: &[u8]) -> String {
+    super::hex_encode(data)
 }

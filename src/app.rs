@@ -1,6 +1,9 @@
-use crate::config::{ColumnFamilyConfig, Config, KeyFormat, ValueFormat};
+use crate::config::{ColumnFamilyConfig, Config, ValueFormat};
 use crate::db::SecondaryDb;
-use crate::parser::{parse_key, parse_value, MoleculeRegistry, ProtoRegistry};
+use crate::parser::{
+    parse_key_hex, parse_key_with_schema, parse_value, KeySchemaRegistry, MoleculeRegistry,
+    ProtoRegistry,
+};
 use anyhow::Result;
 
 const PAGE_SIZE: usize = 100;
@@ -26,6 +29,7 @@ pub struct App {
     pub should_quit: bool,
     pub proto_registry: ProtoRegistry,
     pub molecule_registry: MoleculeRegistry,
+    pub key_schema_registry: KeySchemaRegistry,
     pub status_message: Option<String>,
 }
 
@@ -45,6 +49,7 @@ impl App {
             should_quit: false,
             proto_registry: ProtoRegistry::new(),
             molecule_registry: MoleculeRegistry::new(),
+            key_schema_registry: KeySchemaRegistry::new(),
             status_message: None,
         };
         app.load_keys()?;
@@ -61,12 +66,6 @@ impl App {
     pub fn current_cf_config(&self) -> Option<&ColumnFamilyConfig> {
         self.current_cf()
             .and_then(|cf| self.config.get_cf_config(cf))
-    }
-
-    pub fn key_format(&self) -> KeyFormat {
-        self.current_cf_config()
-            .map(|c| c.key_format.clone())
-            .unwrap_or_default()
     }
 
     pub fn value_format(&self) -> ValueFormat {
@@ -128,11 +127,35 @@ impl App {
             .and_then(|cf| self.db.estimate_num_keys(cf))
     }
 
-    pub fn formatted_keys(&self) -> Vec<String> {
-        let format = self.key_format();
-        self.keys
-            .iter()
-            .map(|(k, _)| parse_key(k, &format))
+    pub fn formatted_keys(&mut self) -> Vec<String> {
+        let cf_config = self.current_cf_config().cloned();
+        let keys: Vec<_> = self.keys.iter().map(|(k, _)| k.clone()).collect();
+
+        keys.iter()
+            .map(|k| {
+                if let Some(ref config) = cf_config {
+                    // Check for hex preset first
+                    if KeySchemaRegistry::is_hex_preset(config.key_schema.as_deref()) {
+                        return parse_key_hex(k);
+                    }
+
+                    // Try to get/compile schema
+                    match self.key_schema_registry.get_schema(
+                        &config.name,
+                        config.key_schema.as_deref(),
+                        config.key_schema_file.as_deref(),
+                    ) {
+                        Ok(schema) => parse_key_with_schema(k, schema),
+                        Err(e) => {
+                            // Schema error, fall back to hex
+                            format!("[schema error: {}] {}", e, parse_key_hex(k))
+                        }
+                    }
+                } else {
+                    // No config, use hex
+                    parse_key_hex(k)
+                }
+            })
             .collect()
     }
 

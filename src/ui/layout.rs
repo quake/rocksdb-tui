@@ -63,7 +63,7 @@ fn draw_cf_list(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(list, area, &mut state);
 }
 
-fn draw_key_list(frame: &mut Frame, app: &App, area: Rect) {
+fn draw_key_list(frame: &mut Frame, app: &mut App, area: Rect) {
     let focused = app.focus == Focus::Keys;
     let border_style = if focused {
         Style::default().fg(Color::Cyan)
