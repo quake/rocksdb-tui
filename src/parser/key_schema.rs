@@ -301,6 +301,111 @@ impl KeySchema {
     }
 }
 
+/// Registry for compiled key schemas, with caching and preset support
+pub struct KeySchemaRegistry {
+    schemas: std::collections::HashMap<String, KeySchema>,
+}
+
+impl KeySchemaRegistry {
+    pub fn new() -> Self {
+        Self {
+            schemas: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Get or compile a schema for a column family
+    pub fn get_schema(
+        &mut self,
+        cf_name: &str,
+        key_schema: Option<&str>,
+        key_schema_file: Option<&str>,
+    ) -> Result<Option<&KeySchema>> {
+        if self.schemas.contains_key(cf_name) {
+            return Ok(self.schemas.get(cf_name));
+        }
+
+        let schema = if let Some(schema_str) = key_schema {
+            Some(self.parse_schema_or_preset(schema_str)?)
+        } else if let Some(file_path) = key_schema_file {
+            let content = std::fs::read_to_string(file_path)
+                .map_err(|e| anyhow!("Failed to read schema file '{}': {}", file_path, e))?;
+            Some(KeySchema::parse(&content)?)
+        } else {
+            None
+        };
+
+        if let Some(s) = schema {
+            self.schemas.insert(cf_name.to_string(), s);
+            Ok(self.schemas.get(cf_name))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn parse_schema_or_preset(&self, schema_str: &str) -> Result<KeySchema> {
+        // Check if it's a single-word preset
+        let trimmed = schema_str.trim();
+        if !trimmed.contains('\n') && !trimmed.contains(':') {
+            return self.preset_to_schema(trimmed);
+        }
+        KeySchema::parse(schema_str)
+    }
+
+    fn preset_to_schema(&self, preset: &str) -> Result<KeySchema> {
+        let yaml = match preset {
+            "hex" => return Err(anyhow!("__hex_preset__")), // Special marker for hex fallback
+            "string" => {
+                r#"seq:
+  - id: value
+    type: strz
+"#
+            }
+            "u4be" => {
+                r#"seq:
+  - id: value
+    type: u4
+"#
+            }
+            "u4le" => {
+                r#"seq:
+  - id: value
+    type: u4le
+"#
+            }
+            "u8be" => {
+                r#"seq:
+  - id: value
+    type: u8
+"#
+            }
+            "u8le" => {
+                r#"seq:
+  - id: value
+    type: u8le
+"#
+            }
+            other => {
+                return Err(anyhow!(
+                    "Unknown preset '{}'. Valid presets: hex, string, u4be, u4le, u8be, u8le",
+                    other
+                ))
+            }
+        };
+        KeySchema::parse(yaml)
+    }
+
+    /// Check if a schema string represents the hex preset
+    pub fn is_hex_preset(key_schema: Option<&str>) -> bool {
+        key_schema.map(|s| s.trim() == "hex").unwrap_or(false)
+    }
+}
+
+impl Default for KeySchemaRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn parse_field_type(field: &RawField) -> Result<FieldType> {
     match field.field_type.as_str() {
         "u1" => Ok(FieldType::U1),
@@ -532,5 +637,41 @@ seq:
         let data = [0x82, 0x2c];
         let result = schema.decode(&data);
         assert_eq!(result, "length: 300");
+    }
+
+    #[test]
+    fn test_registry_preset_u8le() {
+        let mut registry = KeySchemaRegistry::new();
+        let schema = registry
+            .get_schema("test", Some("u8le"), None)
+            .unwrap()
+            .unwrap();
+        let data = 42u64.to_le_bytes();
+        assert_eq!(schema.decode(&data), "value: 42");
+    }
+
+    #[test]
+    fn test_registry_preset_hex() {
+        assert!(KeySchemaRegistry::is_hex_preset(Some("hex")));
+        assert!(!KeySchemaRegistry::is_hex_preset(Some("u8le")));
+        assert!(!KeySchemaRegistry::is_hex_preset(None));
+    }
+
+    #[test]
+    fn test_registry_caches_schema() {
+        let mut registry = KeySchemaRegistry::new();
+        let yaml = r#"
+seq:
+  - id: num
+    type: u4le
+"#;
+        let _ = registry.get_schema("cf1", Some(yaml), None).unwrap();
+        // Second call should return cached schema
+        let schema = registry
+            .get_schema("cf1", Some(yaml), None)
+            .unwrap()
+            .unwrap();
+        let data = [0x01, 0x00, 0x00, 0x00];
+        assert_eq!(schema.decode(&data), "num: 1");
     }
 }
