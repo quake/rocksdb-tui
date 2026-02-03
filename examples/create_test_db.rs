@@ -16,7 +16,7 @@ fn main() {
     opts.create_missing_column_families(true);
 
     let cfs = vec![
-        "default", "users", "logs", "cache", "orders", "accounts", "blocks",
+        "default", "users", "logs", "cache", "orders", "accounts", "blocks", "metrics",
     ];
     let db = DB::open_cf(&opts, path, &cfs).unwrap();
 
@@ -200,6 +200,24 @@ fn main() {
         key.extend_from_slice(&block_num.to_le_bytes()); // u8le = u64 little-endian
         key.extend_from_slice(&tx_index.to_le_bytes()); // u4le = u32 little-endian
         db.put_cf(&blocks_cf, &key, tx_json.as_bytes()).unwrap();
+    }
+
+    // Add metrics data with binary structured values (demonstrates value_schema)
+    // Value format: timestamp (u64) + value (u64) + flags (u32) = 20 bytes
+    let metrics_cf = db.cf_handle("metrics").unwrap();
+    let metrics = vec![
+        ("cpu_usage", 1704067200u64, 4523u64, 0u32), // 2024-01-01 00:00:00, 45.23%
+        ("memory_usage", 1704067200u64, 8192u64, 1u32), // 8192 MB, flag=1
+        ("disk_io", 1704067200u64, 102400u64, 0u32), // 102400 KB/s
+        ("network_rx", 1704067200u64, 1048576u64, 2u32), // 1 MB/s, flag=2
+        ("network_tx", 1704067200u64, 524288u64, 2u32), // 512 KB/s
+    ];
+    for (key, timestamp, value, flags) in metrics {
+        let mut data = Vec::with_capacity(20);
+        data.extend_from_slice(&timestamp.to_le_bytes());
+        data.extend_from_slice(&value.to_le_bytes());
+        data.extend_from_slice(&flags.to_le_bytes());
+        db.put_cf(&metrics_cf, key.as_bytes(), &data).unwrap();
     }
 
     println!("Test database created at {:?}", path);

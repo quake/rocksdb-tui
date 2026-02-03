@@ -45,3 +45,17 @@ seq:
     type: u4le
 """
 value_format = "json"
+
+# Demonstrates value_schema for binary structured values
+[[column_families]]
+name = "metrics"
+key_schema = "string"
+value_schema = """
+seq:
+  - id: timestamp
+    type: u8le
+  - id: value
+    type: u8le
+  - id: flags
+    type: u4le
+"""

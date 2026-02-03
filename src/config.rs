@@ -17,6 +17,9 @@ pub struct ColumnFamilyConfig {
     // Value format
     #[serde(default = "default_value_format")]
     pub value_format: ValueFormat,
+    // Value schema: inline schema, preset, or file reference (used when value_format not specified or is schema)
+    pub value_schema: Option<String>,
+    pub value_schema_file: Option<String>,
     // Protobuf config
     pub proto_file: Option<String>,
     pub proto_message: Option<String>,
@@ -106,5 +109,29 @@ value_format = "json"
             config.column_families[0].key_schema_file,
             Some("schemas/account_key.ksy".to_string())
         );
+    }
+
+    #[test]
+    fn test_parse_config_with_value_schema() {
+        let toml = r#"
+[[column_families]]
+name = "metrics"
+key_schema = "string"
+value_schema = """
+seq:
+  - id: timestamp
+    type: u8le
+  - id: value
+    type: u8le
+"""
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.column_families.len(), 1);
+        assert!(config.column_families[0].value_schema.is_some());
+        assert!(config.column_families[0]
+            .value_schema
+            .as_ref()
+            .unwrap()
+            .contains("timestamp"));
     }
 }

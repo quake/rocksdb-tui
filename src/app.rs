@@ -29,6 +29,7 @@ pub struct App {
     pub proto_registry: ProtoRegistry,
     pub molecule_registry: MoleculeRegistry,
     pub key_schema_registry: KeySchemaRegistry,
+    pub value_schema_registry: KeySchemaRegistry,
     pub status_message: Option<String>,
 }
 
@@ -49,6 +50,7 @@ impl App {
             proto_registry: ProtoRegistry::new(),
             molecule_registry: MoleculeRegistry::new(),
             key_schema_registry: KeySchemaRegistry::new(),
+            value_schema_registry: KeySchemaRegistry::new(),
             status_message: None,
         };
         app.load_keys()?;
@@ -213,6 +215,31 @@ impl App {
     pub fn current_value(&mut self) -> Option<(String, bool)> {
         let (_, v) = self.keys.get(self.key_index)?;
         let value_data = v.clone();
+
+        // Check for value_schema first (takes priority over value_format)
+        if let Some(cf_config) = self.current_cf_config().cloned() {
+            if cf_config.value_schema.is_some() || cf_config.value_schema_file.is_some() {
+                // Use schema-based decoding
+                let cf_name = cf_config.name.clone();
+                match self.value_schema_registry.get_schema(
+                    &cf_name,
+                    cf_config.value_schema.as_deref(),
+                    cf_config.value_schema_file.as_deref(),
+                ) {
+                    Ok(Some(schema)) => {
+                        let decoded = schema.decode(&value_data);
+                        return Some((decoded, true));
+                    }
+                    Ok(None) => {
+                        // No schema, fall through to value_format
+                    }
+                    Err(e) => {
+                        return Some((format!("Schema error: {}", e), false));
+                    }
+                }
+            }
+        }
+
         let format = self.value_format();
 
         // Handle protobuf specially - needs registry and config
