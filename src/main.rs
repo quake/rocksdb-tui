@@ -103,13 +103,24 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
                         pending_search = None;
                         app.clear_search()?;
                     }
-                    KeyCode::Enter => {
+                    KeyCode::Enter | KeyCode::Tab => {
                         // Execute immediately and exit search mode
                         if pending_search.is_some() {
                             app.execute_search()?;
                             pending_search = None;
                         }
                         app.search_active = false;
+                        if key.code == KeyCode::Tab {
+                            app.next_focus();
+                        }
+                    }
+                    KeyCode::BackTab => {
+                        if pending_search.is_some() {
+                            app.execute_search()?;
+                            pending_search = None;
+                        }
+                        app.search_active = false;
+                        app.prev_focus();
                     }
                     KeyCode::Backspace => {
                         app.search_input.pop();
