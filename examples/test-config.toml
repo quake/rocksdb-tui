@@ -19,3 +19,10 @@ key_format = "string"
 value_format = "protobuf"
 proto_file = "examples/protos/order.proto"
 proto_message = "Order"
+
+[[column_families]]
+name = "accounts"
+key_format = "string"
+value_format = "molecule"
+mol_file = "examples/molecules/types.mol"
+mol_type = "Account"

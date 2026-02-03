@@ -15,7 +15,11 @@ pub fn parse_value(data: &[u8], format: &ValueFormat) -> ParseResult {
         ValueFormat::Json => parse_json(data),
         ValueFormat::Msgpack => parse_msgpack(data),
         ValueFormat::Protobuf => ParseResult {
-            content: format!("protobuf: {} bytes (not implemented)", data.len()),
+            content: format!("protobuf: {} bytes (handled separately)", data.len()),
+            success: false,
+        },
+        ValueFormat::Molecule => ParseResult {
+            content: format!("molecule: {} bytes (handled separately)", data.len()),
             success: false,
         },
     }

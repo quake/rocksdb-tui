@@ -1,6 +1,6 @@
 use crate::config::{ColumnFamilyConfig, Config, KeyFormat, ValueFormat};
 use crate::db::SecondaryDb;
-use crate::parser::{parse_key, parse_value, ProtoRegistry};
+use crate::parser::{parse_key, parse_value, MoleculeRegistry, ProtoRegistry};
 use anyhow::Result;
 
 const PAGE_SIZE: usize = 100;
@@ -25,6 +25,7 @@ pub struct App {
     pub search_prefix: Option<Vec<u8>>,
     pub should_quit: bool,
     pub proto_registry: ProtoRegistry,
+    pub molecule_registry: MoleculeRegistry,
 }
 
 impl App {
@@ -42,6 +43,7 @@ impl App {
             search_prefix: None,
             should_quit: false,
             proto_registry: ProtoRegistry::new(),
+            molecule_registry: MoleculeRegistry::new(),
         };
         app.load_keys()?;
         Ok(app)
@@ -166,6 +168,33 @@ impl App {
                         "Missing proto_file or proto_message in config".to_string(),
                         false,
                     ));
+                }
+            }
+        }
+
+        // Handle molecule specially - needs registry and config
+        if matches!(format, ValueFormat::Molecule) {
+            if let Some(cf_config) = self.current_cf_config() {
+                if let (Some(mol_file), Some(mol_type)) = (&cf_config.mol_file, &cf_config.mol_type)
+                {
+                    let mol_file = mol_file.clone();
+                    let mol_type = mol_type.clone();
+
+                    match self.molecule_registry.get_schema(&mol_file) {
+                        Ok(ast) => {
+                            match crate::parser::molecule::decode_to_json(
+                                &value_data,
+                                ast,
+                                &mol_type,
+                            ) {
+                                Ok(json) => return Some((json, true)),
+                                Err(e) => return Some((format!("Decode error: {}", e), false)),
+                            }
+                        }
+                        Err(e) => return Some((format!("Molecule error: {}", e), false)),
+                    }
+                } else {
+                    return Some(("Missing mol_file or mol_type in config".to_string(), false));
                 }
             }
         }

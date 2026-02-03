@@ -16,6 +16,7 @@ rmp-serde = "1"
 protox = "0.7"
 prost = "0.13"
 prost-reflect = { version = "0.14", features = ["serde"] }
+molecule-codegen = "0.9"
 
 [[example]]
 name = "create_test_db"

@@ -15,10 +15,14 @@ pub struct ColumnFamilyConfig {
     pub key_format: KeyFormat,
     #[serde(default = "default_value_format")]
     pub value_format: ValueFormat,
+    // Protobuf config
     pub proto_file: Option<String>,
     pub proto_message: Option<String>,
     #[serde(default)]
     pub proto_includes: Vec<String>,
+    // Molecule config
+    pub mol_file: Option<String>,
+    pub mol_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -40,6 +44,7 @@ pub enum ValueFormat {
     Json,
     Msgpack,
     Protobuf,
+    Molecule,
 }
 
 fn default_key_format() -> KeyFormat {

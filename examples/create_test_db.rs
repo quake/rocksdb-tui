@@ -15,7 +15,7 @@ fn main() {
     opts.create_if_missing(true);
     opts.create_missing_column_families(true);
 
-    let cfs = vec!["default", "users", "logs", "cache", "orders"];
+    let cfs = vec!["default", "users", "logs", "cache", "orders", "accounts"];
     let db = DB::open_cf(&opts, path, &cfs).unwrap();
 
     // Add some test data to default CF
@@ -133,6 +133,68 @@ fn main() {
     db.put_cf(&orders_cf, b"order:1002", &order2.encode_to_vec())
         .unwrap();
 
+    // Add Molecule data to accounts CF
+    // Molecule Account table format:
+    // - full_size (4 bytes, u32 LE)
+    // - offset for id (4 bytes)
+    // - offset for balance (4 bytes)
+    // - offset for nonce (4 bytes)
+    // - offset for code_hash (4 bytes)
+    // - id: Uint64 [byte; 8]
+    // - balance: Uint64 [byte; 8]
+    // - nonce: Uint32 [byte; 4]
+    // - code_hash: Byte32 [byte; 32]
+    let accounts_cf = db.cf_handle("accounts").unwrap();
+
+    // Account 1: id=1, balance=1000000, nonce=5, code_hash=0x11...11
+    let account1 = build_molecule_account(1, 1_000_000, 5, [0x11; 32]);
+    db.put_cf(&accounts_cf, b"account:0x1111", &account1)
+        .unwrap();
+
+    // Account 2: id=2, balance=500000, nonce=10, code_hash=0x22...22
+    let account2 = build_molecule_account(2, 500_000, 10, [0x22; 32]);
+    db.put_cf(&accounts_cf, b"account:0x2222", &account2)
+        .unwrap();
+
+    // Account 3: id=3, balance=0, nonce=0, code_hash=0x00...00
+    let account3 = build_molecule_account(3, 0, 0, [0x00; 32]);
+    db.put_cf(&accounts_cf, b"account:0x3333", &account3)
+        .unwrap();
+
     println!("Test database created at {:?}", path);
     println!("Column families: {:?}", cfs);
+}
+
+/// Build a molecule-encoded Account table
+/// Table layout: full_size | offset_0 | offset_1 | offset_2 | offset_3 | field_0 | field_1 | field_2 | field_3
+fn build_molecule_account(id: u64, balance: u64, nonce: u32, code_hash: [u8; 32]) -> Vec<u8> {
+    // Header: full_size (4) + 4 offsets (16) = 20 bytes
+    // Body: id (8) + balance (8) + nonce (4) + code_hash (32) = 52 bytes
+    // Total: 72 bytes
+    let header_size: u32 = 4 + 4 * 4; // full_size + 4 offsets
+    let full_size: u32 = header_size + 8 + 8 + 4 + 32;
+
+    let mut data = Vec::with_capacity(full_size as usize);
+
+    // Full size
+    data.extend_from_slice(&full_size.to_le_bytes());
+
+    // Offsets (each field starts after header)
+    let offset_0: u32 = header_size; // id starts at 20
+    let offset_1: u32 = offset_0 + 8; // balance starts at 28
+    let offset_2: u32 = offset_1 + 8; // nonce starts at 36
+    let offset_3: u32 = offset_2 + 4; // code_hash starts at 40
+
+    data.extend_from_slice(&offset_0.to_le_bytes());
+    data.extend_from_slice(&offset_1.to_le_bytes());
+    data.extend_from_slice(&offset_2.to_le_bytes());
+    data.extend_from_slice(&offset_3.to_le_bytes());
+
+    // Fields (arrays are stored directly, little-endian)
+    data.extend_from_slice(&id.to_le_bytes()); // Uint64
+    data.extend_from_slice(&balance.to_le_bytes()); // Uint64
+    data.extend_from_slice(&nonce.to_le_bytes()); // Uint32
+    data.extend_from_slice(&code_hash); // Byte32
+
+    data
 }

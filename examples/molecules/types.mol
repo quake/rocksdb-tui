@@ -1,0 +1,32 @@
+// Basic types
+array Uint32 [byte; 4];
+array Uint64 [byte; 8];
+array Byte32 [byte; 32];
+
+// A simple account structure
+table Account {
+    id: Uint64,
+    balance: Uint64,
+    nonce: Uint32,
+    code_hash: Byte32,
+}
+
+// A transaction structure  
+table Transaction {
+    from: Byte32,
+    to: Byte32,
+    value: Uint64,
+    nonce: Uint32,
+    data: Bytes,
+}
+
+// Variable-length bytes
+vector Bytes <byte>;
+
+// A block header
+table BlockHeader {
+    number: Uint64,
+    timestamp: Uint64,
+    parent_hash: Byte32,
+    transactions_root: Byte32,
+}

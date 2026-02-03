@@ -1,8 +1,10 @@
 mod key;
+pub mod molecule;
 pub mod protobuf;
 mod value;
 
 pub use key::parse_key;
+pub use molecule::MoleculeRegistry;
 pub use protobuf::ProtoRegistry;
 pub use value::parse_value;
 
