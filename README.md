@@ -165,6 +165,34 @@ key_schema_file = "schemas/block_key.yaml"
 value_format = "json"
 ```
 
+### Value Schema
+
+For binary structured values (not covered by standard formats like JSON/Protobuf/MessagePack), use `value_schema` with the same Kaitai-style DSL:
+
+```toml
+[[column_families]]
+name = "metrics"
+key_schema = "string"
+value_schema = """
+seq:
+  - id: timestamp
+    type: u8le
+  - id: value
+    type: u8le
+  - id: flags
+    type: u4le
+"""
+```
+
+Values display as: `timestamp: 1699123456, value: 42, flags: 1`
+
+The `value_schema` field supports:
+- All the same presets as `key_schema` (`string`, `hex`, `u8le`, etc.)
+- Full Kaitai-style YAML schemas with composite fields
+- External files via `value_schema_file`
+
+**Note:** `value_schema` takes precedence over `value_format`. Use `value_format` for standard formats (JSON, Protobuf, etc.) and `value_schema` for custom binary structures.
+
 ## Keyboard Shortcuts
 
 | Key | Action |
