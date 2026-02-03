@@ -22,6 +22,7 @@ pub struct App {
     pub has_more_keys: bool,
     pub search_input: String,
     pub search_active: bool,
+    pub search_prefix: Option<Vec<u8>>,
     pub should_quit: bool,
 }
 
@@ -37,6 +38,7 @@ impl App {
             has_more_keys: false,
             search_input: String::new(),
             search_active: false,
+            search_prefix: None,
             should_quit: false,
         };
         app.load_keys()?;
