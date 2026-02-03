@@ -80,13 +80,16 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
                         app.clear_search()?;
                     }
                     KeyCode::Enter => {
-                        app.execute_search()?;
+                        // Exit search mode but keep filter active
+                        app.search_active = false;
                     }
                     KeyCode::Backspace => {
                         app.search_input.pop();
+                        app.execute_search()?;
                     }
                     KeyCode::Char(c) => {
                         app.search_input.push(c);
+                        app.execute_search()?;
                     }
                     _ => {}
                 }
