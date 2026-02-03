@@ -107,39 +107,48 @@ impl App {
             self.search_prefix = None;
             self.load_keys()?;
         } else {
-            self.search_prefix = Some(self.parse_search_input());
-            self.load_keys()?;
+            // Try to parse search input, None means incomplete/invalid hex
+            if let Some(prefix) = self.parse_search_input() {
+                self.search_prefix = Some(prefix);
+                self.load_keys()?;
+            }
+            // If parse returns None (incomplete hex), don't trigger search
         }
         Ok(())
     }
 
     /// Parse search input as hex (if starts with 0x) or as UTF-8 string
-    fn parse_search_input(&self) -> Vec<u8> {
+    /// Returns None if hex prefix is detected but input is incomplete/invalid
+    fn parse_search_input(&self) -> Option<Vec<u8>> {
         let input = self.search_input.trim();
         if let Some(hex_str) = input
             .strip_prefix("0x")
             .or_else(|| input.strip_prefix("0X"))
         {
-            // Try to parse as hex
-            if let Some(bytes) = Self::parse_hex(hex_str) {
-                return bytes;
-            }
+            // Hex mode: must be valid and complete
+            Self::parse_hex(hex_str)
+        } else {
+            // UTF-8 string mode
+            Some(self.search_input.as_bytes().to_vec())
         }
-        // Fall back to UTF-8 string
-        self.search_input.as_bytes().to_vec()
     }
 
-    /// Parse hex string to bytes, returns None if invalid
+    /// Parse hex string to bytes
+    /// Returns None if empty, invalid chars, or odd length
     fn parse_hex(hex_str: &str) -> Option<Vec<u8>> {
         let hex_str = hex_str.replace(" ", ""); // Allow spaces in hex
         if hex_str.is_empty() {
             return None;
         }
+        // Must be even length for complete bytes
+        if hex_str.len() % 2 != 0 {
+            return None;
+        }
         let mut bytes = Vec::with_capacity(hex_str.len() / 2);
-        let mut chars = hex_str.chars().peekable();
-        while chars.peek().is_some() {
-            let high = chars.next()?.to_digit(16)? as u8;
-            let low = chars.next().and_then(|c| c.to_digit(16)).unwrap_or(0) as u8;
+        let mut chars = hex_str.chars();
+        while let Some(high_char) = chars.next() {
+            let high = high_char.to_digit(16)? as u8;
+            let low = chars.next()?.to_digit(16)? as u8;
             bytes.push((high << 4) | low);
         }
         Some(bytes)
