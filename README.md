@@ -240,7 +240,7 @@ Plugins are WebAssembly modules that export these functions:
 
 The packed return value encodes `(ptr << 32) | len`.
 
-**Key-based routing:** The `parse` function receives both key and value. This allows plugins to route parsing based on key prefixes - useful for databases like Fiber Network that use a single column family with prefix bytes to distinguish value types.
+**Key-based routing:** The `parse` function receives both key and value. This allows plugins to route parsing based on key prefixes - useful for databases that use a single column family with prefix bytes to distinguish value types.
 
 #### Writing a Plugin
 
@@ -251,27 +251,27 @@ use rocksdb_tui_plugin_sdk::*;
 
 // Parser function receives format, key, and value
 fn my_parser(format: &str, key: &[u8], value: &[u8]) -> Result<String, String> {
-    // Route by key prefix for single-CF databases
-    if format == "fiber" {
+    // Mode 1: Route by key prefix for single-CF databases
+    if format == "demo" {
         return match key.first() {
-            Some(0x00) => parse_channel_state(value),
-            Some(0x01) => parse_payment_session(value),
+            Some(0x00) => parse_product(value),
+            Some(0x01) => parse_customer(value),
+            Some(0x02) => parse_transaction(value),
             _ => Ok("{}".to_string()),
         };
     }
     
-    // Or parse by format name
+    // Mode 2: Parse by format name (multi-CF)
     match format {
-        "myapp.User" => {
-            let user: User = bincode::deserialize(value).map_err(|e| e.to_string())?;
-            serde_json::to_string_pretty(&user).map_err(|e| e.to_string())
-        }
+        "demo.Product" => parse_product(value),
+        "demo.Customer" => parse_customer(value),
+        "demo.Transaction" => parse_transaction(value),
         _ => Err(format!("Unknown format: {}", format))
     }
 }
 
 export_plugin! {
-    formats: ["fiber", "myapp.User"],
+    formats: ["demo", "demo.Product", "demo.Customer", "demo.Transaction"],
     parse: my_parser
 }
 ```
@@ -281,9 +281,13 @@ Build with:
 cargo build --target wasm32-unknown-unknown --release
 ```
 
-#### Example: Fiber Network
+#### Example: Demo Plugin
 
-See `examples/fiber/` for a complete example using a WASM plugin to decode Fiber Network's bincode-serialized data with prefix-based routing.
+See `crates/demo-parser/` and `crates/demo-types/` for a complete example:
+- `demo-types`: Third-party library defining types with bincode serialization
+- `demo-parser`: WASM plugin supporting both key-prefix routing and format-based routing
+
+The test database (`cargo run --example create_test_db`) includes demo data for both modes.
 
 ## Keyboard Shortcuts
 
