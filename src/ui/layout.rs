@@ -80,13 +80,19 @@ fn draw_key_list(frame: &mut Frame, app: &App, area: Rect) {
     // Search box
     let search_style = if app.search_active {
         Style::default().fg(Color::Yellow)
+    } else if app.search_prefix.is_some() {
+        Style::default().fg(Color::Green)
     } else {
         Style::default().fg(Color::DarkGray)
     };
-    let search_text = if app.search_input.is_empty() && !app.search_active {
-        "Press / to search..."
+    let search_text = if app.search_active {
+        app.search_input.clone()
+    } else if let Some(ref prefix) = app.search_prefix {
+        format!("Filter: {}", String::from_utf8_lossy(prefix))
+    } else if app.search_input.is_empty() {
+        "Press / to search...".to_string()
     } else {
-        &app.search_input
+        app.search_input.clone()
     };
     let search = Paragraph::new(search_text)
         .style(search_style)
@@ -151,23 +157,6 @@ fn draw_value_view(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(paragraph, area);
 }
 
-fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
-    let cf_name = app.current_cf().unwrap_or("N/A");
-    let key_count = app
-        .estimate_keys()
-        .map(|n| format!("~{}", format_number(n)))
-        .unwrap_or_else(|| "?".to_string());
-    let format = format!("{:?}", app.value_format());
-
-    let status = format!(
-        " CF: {} | Keys: {} (estimate) | Format: {} | [?] Help",
-        cf_name, key_count, format
-    );
-
-    let paragraph = Paragraph::new(status).style(Style::default().bg(Color::DarkGray));
-    frame.render_widget(paragraph, area);
-}
-
 fn format_number(n: u64) -> String {
     if n >= 1_000_000 {
         format!("{:.1}M", n as f64 / 1_000_000.0)
@@ -176,4 +165,24 @@ fn format_number(n: u64) -> String {
     } else {
         n.to_string()
     }
+}
+
+fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
+    let key_count = if app.search_prefix.is_some() {
+        format!("Filtered: {}", app.keys.len())
+    } else {
+        app.estimate_keys()
+            .map(|n| format!("~{}", format_number(n)))
+            .unwrap_or_else(|| "?".to_string())
+    };
+
+    let status = format!(
+        " CF: {} | Keys: {} | Format: {:?} | [?] Help [/] Search [q] Quit ",
+        app.current_cf().unwrap_or("none"),
+        key_count,
+        app.value_format()
+    );
+
+    let paragraph = Paragraph::new(status).style(Style::default().bg(Color::DarkGray));
+    frame.render_widget(paragraph, area);
 }
