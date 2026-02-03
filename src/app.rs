@@ -1,6 +1,7 @@
 use crate::config::{ColumnFamilyConfig, Config, ValueFormat};
 use crate::db::SecondaryDb;
 use crate::parser::{parse_key_hex, parse_value, MoleculeRegistry, ProtoRegistry, SchemaRegistry};
+use crate::plugin::WasmPluginManager;
 use anyhow::Result;
 
 const PAGE_SIZE: usize = 100;
@@ -28,11 +29,24 @@ pub struct App {
     pub molecule_registry: MoleculeRegistry,
     pub key_schema_registry: SchemaRegistry,
     pub value_schema_registry: SchemaRegistry,
+    pub plugin_manager: WasmPluginManager,
     pub status_message: Option<String>,
 }
 
 impl App {
     pub fn new(db: SecondaryDb, config: Config) -> Result<Self> {
+        // Load WASM plugins from config
+        let mut plugin_manager = WasmPluginManager::new()?;
+        for path in config.expand_plugin_paths() {
+            if path.exists() {
+                if let Err(e) = plugin_manager.load_plugin(&path) {
+                    eprintln!("Warning: Failed to load plugin {:?}: {}", path, e);
+                }
+            } else {
+                eprintln!("Warning: Plugin file not found: {:?}", path);
+            }
+        }
+
         let mut app = Self {
             db,
             config,
@@ -49,6 +63,7 @@ impl App {
             molecule_registry: MoleculeRegistry::new(),
             key_schema_registry: SchemaRegistry::new(),
             value_schema_registry: SchemaRegistry::new(),
+            plugin_manager,
             status_message: None,
         };
         app.load_keys()?;
@@ -296,6 +311,19 @@ impl App {
                     }
                 } else {
                     return Some(("Missing mol_file or mol_type in config".to_string(), false));
+                }
+            }
+        }
+
+        // Handle custom plugin formats
+        if let ValueFormat::Custom(ref format_name) = format {
+            match self.plugin_manager.parse(format_name, &value_data) {
+                Some(json) => return Some((json, true)),
+                None => {
+                    return Some((
+                        format!("No plugin found for format: {}", format_name),
+                        false,
+                    ))
                 }
             }
         }

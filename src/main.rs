@@ -14,6 +14,7 @@ mod app;
 mod config;
 mod db;
 mod parser;
+mod plugin;
 mod ui;
 
 use app::{App, Focus};
