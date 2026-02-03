@@ -77,12 +77,10 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
             if app.search_active {
                 match key.code {
                     KeyCode::Esc => {
-                        app.search_active = false;
-                        app.search_input.clear();
+                        app.clear_search()?;
                     }
                     KeyCode::Enter => {
-                        // TODO: Implement search
-                        app.search_active = false;
+                        app.execute_search()?;
                     }
                     KeyCode::Backspace => {
                         app.search_input.pop();
