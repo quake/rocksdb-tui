@@ -55,20 +55,22 @@ rocksdb-tui --db /path/to/rocksdb --secondary /tmp/my-secondary
 Create a TOML file to configure parsers for each column family:
 
 ```toml
-# String/JSON values
+# String keys and JSON values
 [[column_families]]
 name = "users"
-key_format = "string"      # string, hex, u64_be, u64_le
+key_schema = "string"      # preset: string, hex, u8le, u4be, etc.
 value_format = "json"      # string, hex, json, msgpack, protobuf, molecule
 
-# MessagePack values
+# MessagePack values with hex keys
 [[column_families]]
 name = "sessions"
+key_schema = "hex"
 value_format = "msgpack"
 
 # Protobuf values (dynamic decoding, no protoc needed)
 [[column_families]]
 name = "orders"
+key_schema = "string"
 value_format = "protobuf"
 proto_file = "protos/order.proto"
 proto_message = "Order"
@@ -77,9 +79,90 @@ proto_includes = ["protos/"]  # optional: additional import paths
 # Molecule values (CKB format)
 [[column_families]]
 name = "accounts"
+key_schema = "string"
 value_format = "molecule"
 mol_file = "schemas/types.mol"
 mol_type = "Account"
+
+# Composite binary keys using Kaitai-style schema
+[[column_families]]
+name = "blocks"
+key_schema = """
+seq:
+  - id: block_num
+    type: u8le
+  - id: tx_index
+    type: u4le
+"""
+value_format = "json"
+```
+
+### Key Schema
+
+The `key_schema` field supports both presets (simple strings) and custom Kaitai-style YAML schemas for composite binary keys.
+
+#### Presets
+
+| Preset | Description |
+|--------|-------------|
+| `string` | UTF-8 string (default) |
+| `hex` | Hexadecimal dump |
+| `u1`, `u2le`, `u2be`, `u4le`, `u4be`, `u8le`, `u8be` | Unsigned integers (1/2/4/8 bytes, little/big endian) |
+| `s1`, `s2le`, `s2be`, `s4le`, `s4be`, `s8le`, `s8be` | Signed integers |
+
+#### Custom Schema
+
+For composite keys (e.g., `block_number + tx_index`), use a Kaitai-style YAML schema:
+
+```yaml
+seq:
+  - id: block_num    # field name
+    type: u8le       # u64 little-endian
+  - id: tx_index
+    type: u4le       # u32 little-endian
+```
+
+**Supported field types:**
+
+| Type | Description |
+|------|-------------|
+| `u1`, `u2le`, `u2be`, `u4le`, `u4be`, `u8le`, `u8be` | Unsigned integers |
+| `s1`, `s2le`, `s2be`, `s4le`, `s4be`, `s8le`, `s8be` | Signed integers |
+| `bytes` | Fixed-size bytes (requires `size` attribute) |
+| `str` | Fixed-size UTF-8 string (requires `size` attribute) |
+| `strz` | Null-terminated string |
+| `vlq` | Variable-length quantity (unsigned) |
+
+**Example with bytes and enum:**
+
+```yaml
+enums:
+  tx_type:
+    0: coinbase
+    1: transfer
+    2: contract
+seq:
+  - id: block_hash
+    type: bytes
+    size: 32
+  - id: tx_type
+    type: u1
+    enum: tx_type
+  - id: tx_index
+    type: u4le
+```
+
+Keys display as: `block_hash: 0x1a2b3c..., tx_type: transfer, tx_index: 42`
+
+#### External Schema File
+
+For complex schemas, use a separate file:
+
+```toml
+[[column_families]]
+name = "blocks"
+key_schema_file = "schemas/block_key.yaml"
+value_format = "json"
 ```
 
 ## Keyboard Shortcuts

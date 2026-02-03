@@ -65,6 +65,7 @@ impl SecondaryDb {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn get(&self, cf_name: &str, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let cf = self
             .db
