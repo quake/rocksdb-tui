@@ -1,0 +1,136 @@
+# CKB RocksDB configuration for rocksdb-tui
+# Usage: rocksdb-tui --db /path/to/ckb/data/db --config examples/ckb/config.toml
+
+# Column 0: Chain index (block number -> block hash mapping)
+[[column_families]]
+name = "0"
+key_format = "u64_be"
+value_format = "hex"
+
+# Column 1: Block headers
+[[column_families]]
+name = "1"
+key_format = "hex"
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/extensions.mol"
+mol_type = "HeaderView"
+
+# Column 2: Block bodies (transactions)
+[[column_families]]
+name = "2"
+key_format = "hex"
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/blockchain.mol"
+mol_type = "TransactionVec"
+
+# Column 3: Uncle blocks
+[[column_families]]
+name = "3"
+key_format = "hex"
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/extensions.mol"
+mol_type = "UncleBlockVecView"
+
+# Column 4: Meta data
+[[column_families]]
+name = "4"
+key_format = "string"
+value_format = "hex"
+
+# Column 5: Transaction info (tx_hash -> block location)
+[[column_families]]
+name = "5"
+key_format = "hex"
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/extensions.mol"
+mol_type = "TransactionInfo"
+
+# Column 6: Block extension info
+[[column_families]]
+name = "6"
+key_format = "hex"
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/extensions.mol"
+mol_type = "BlockExt"
+
+# Column 7: Block proposal IDs
+[[column_families]]
+name = "7"
+key_format = "hex"
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/blockchain.mol"
+mol_type = "ProposalShortIdVec"
+
+# Column 8: Block epoch mapping
+[[column_families]]
+name = "8"
+key_format = "hex"
+value_format = "hex"
+
+# Column 9: Epoch data
+[[column_families]]
+name = "9"
+key_format = "hex"
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/extensions.mol"
+mol_type = "EpochExt"
+
+# Column 10: Cell (live cells)
+[[column_families]]
+name = "10"
+key_format = "hex"
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/extensions.mol"
+mol_type = "CellEntry"
+
+# Column 11: Uncles (consensus tracking)
+[[column_families]]
+name = "11"
+key_format = "hex"
+value_format = "hex"
+
+# Column 12: Cell data
+[[column_families]]
+name = "12"
+key_format = "hex"
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/extensions.mol"
+mol_type = "CellDataEntry"
+
+# Column 13: Number-Hash mapping
+[[column_families]]
+name = "13"
+key_format = "hex"
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/extensions.mol"
+mol_type = "NumberHash"
+
+# Column 14: Cell data hash
+[[column_families]]
+name = "14"
+key_format = "hex"
+value_format = "hex"
+
+# Column 15: Block extension data
+[[column_families]]
+name = "15"
+key_format = "hex"
+value_format = "hex"
+
+# Column 16: Chain root MMR
+[[column_families]]
+name = "16"
+key_format = "hex"
+value_format = "hex"
+
+# Column 17: Block filter data
+[[column_families]]
+name = "17"
+key_format = "hex"
+value_format = "hex"
+
+# Column 18: Block filter hash
+[[column_families]]
+name = "18"
+key_format = "hex"
+value_format = "hex"
