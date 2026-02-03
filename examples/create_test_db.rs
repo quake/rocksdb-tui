@@ -13,7 +13,7 @@ fn main() {
     opts.create_if_missing(true);
     opts.create_missing_column_families(true);
 
-    let cfs = vec!["default", "users", "logs"];
+    let cfs = vec!["default", "users", "logs", "cache"];
     let db = DB::open_cf(&opts, path, &cfs).unwrap();
 
     // Add some test data to default CF
@@ -47,6 +47,28 @@ fn main() {
         let key = format!("log:{:05}", i);
         let value = format!("Log entry {}", i);
         db.put_cf(&logs_cf, key.as_bytes(), value.as_bytes())
+            .unwrap();
+    }
+
+    // Add MessagePack data to cache CF
+    let cache_cf = db.cf_handle("cache").unwrap();
+    let cache_data = vec![
+        (
+            "cache:session:1",
+            serde_json::json!({"user_id": 1001, "token": "abc123", "expires": 3600}),
+        ),
+        (
+            "cache:session:2",
+            serde_json::json!({"user_id": 1002, "token": "def456", "expires": 7200}),
+        ),
+        (
+            "cache:config",
+            serde_json::json!({"theme": "dark", "language": "en", "notifications": true}),
+        ),
+    ];
+    for (key, value) in cache_data {
+        let msgpack_bytes = rmp_serde::to_vec(&value).unwrap();
+        db.put_cf(&cache_cf, key.as_bytes(), &msgpack_bytes)
             .unwrap();
     }
 
