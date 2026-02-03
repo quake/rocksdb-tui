@@ -6,6 +6,7 @@ mod app;
 mod config;
 mod db;
 mod parser;
+mod ui;
 
 use config::Config;
 use db::SecondaryDb;
