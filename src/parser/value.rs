@@ -22,6 +22,14 @@ pub fn parse_value(data: &[u8], format: &ValueFormat) -> ParseResult {
             content: format!("molecule: {} bytes (handled separately)", data.len()),
             success: false,
         },
+        ValueFormat::Custom(format_name) => ParseResult {
+            content: format!(
+                "custom({}): {} bytes (handled by plugin)",
+                format_name,
+                data.len()
+            ),
+            success: false,
+        },
     }
 }
 
