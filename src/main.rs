@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 mod config;
 mod db;
+mod parser;
 
 use config::Config;
 use db::SecondaryDb;
