@@ -103,7 +103,7 @@ fn draw_key_list(frame: &mut Frame, app: &mut App, area: Rect) {
         Style::default().fg(Color::DarkGray)
     };
     let search_text = if app.search_input.is_empty() && !app.search_active {
-        "Press / to search, Esc to clear".to_string()
+        "/ to search (0x for hex)".to_string()
     } else {
         app.search_input.clone()
     };

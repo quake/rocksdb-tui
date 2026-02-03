@@ -107,10 +107,42 @@ impl App {
             self.search_prefix = None;
             self.load_keys()?;
         } else {
-            self.search_prefix = Some(self.search_input.as_bytes().to_vec());
+            self.search_prefix = Some(self.parse_search_input());
             self.load_keys()?;
         }
         Ok(())
+    }
+
+    /// Parse search input as hex (if starts with 0x) or as UTF-8 string
+    fn parse_search_input(&self) -> Vec<u8> {
+        let input = self.search_input.trim();
+        if let Some(hex_str) = input
+            .strip_prefix("0x")
+            .or_else(|| input.strip_prefix("0X"))
+        {
+            // Try to parse as hex
+            if let Some(bytes) = Self::parse_hex(hex_str) {
+                return bytes;
+            }
+        }
+        // Fall back to UTF-8 string
+        self.search_input.as_bytes().to_vec()
+    }
+
+    /// Parse hex string to bytes, returns None if invalid
+    fn parse_hex(hex_str: &str) -> Option<Vec<u8>> {
+        let hex_str = hex_str.replace(" ", ""); // Allow spaces in hex
+        if hex_str.is_empty() {
+            return None;
+        }
+        let mut bytes = Vec::with_capacity(hex_str.len() / 2);
+        let mut chars = hex_str.chars().peekable();
+        while chars.peek().is_some() {
+            let high = chars.next()?.to_digit(16)? as u8;
+            let low = chars.next().and_then(|c| c.to_digit(16)).unwrap_or(0) as u8;
+            bytes.push((high << 4) | low);
+        }
+        Some(bytes)
     }
 
     pub fn clear_search(&mut self) -> Result<()> {
