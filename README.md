@@ -208,9 +208,9 @@ wasm = [
 ]
 
 [[column_families]]
-name = "channels"
+name = "default"
 key_schema = "hex"
-value_format = "fiber.ChannelActorState"  # Custom format handled by plugin
+value_format = "fiber"  # Plugin receives key + value, routes by key prefix
 ```
 
 The `value_format` can be any string. If it doesn't match a built-in format (string, hex, json, msgpack, protobuf, molecule), rocksdb-tui looks for a plugin that handles that format.
@@ -225,9 +225,11 @@ Plugins are WebAssembly modules that export these functions:
 | `alloc` | `(size: u32) -> u32` | Allocate bytes, return pointer |
 | `dealloc` | `(ptr: u32, len: u32)` | Free allocated bytes |
 | `get_formats` | `() -> u64` | Return packed ptr+len to JSON array of format names |
-| `parse` | `(fmt_ptr, fmt_len, data_ptr, data_len) -> u64` | Parse data, return packed ptr+len to JSON result |
+| `parse` | `(fmt_ptr, fmt_len, key_ptr, key_len, val_ptr, val_len) -> u64` | Parse value using key for routing |
 
 The packed return value encodes `(ptr << 32) | len`.
+
+**Key-based routing:** The `parse` function receives both key and value. This allows plugins to route parsing based on key prefixes - useful for databases like Fiber Network that use a single column family with prefix bytes to distinguish value types.
 
 #### Writing a Plugin
 
@@ -236,21 +238,30 @@ Use the `rocksdb-tui-plugin-sdk` crate (see `crates/rocksdb-tui-plugin-sdk/`):
 ```rust
 use rocksdb_tui_plugin_sdk::*;
 
-define_plugin_exports! {
-    formats: ["myapp.UserProfile", "myapp.Transaction"],
-    parse: |format, data| {
-        match format {
-            "myapp.UserProfile" => {
-                let profile: UserProfile = bincode::deserialize(data)?;
-                Ok(serde_json::to_string_pretty(&profile)?)
-            }
-            "myapp.Transaction" => {
-                let tx: Transaction = bincode::deserialize(data)?;
-                Ok(serde_json::to_string_pretty(&tx)?)
-            }
-            _ => Err(anyhow::anyhow!("Unknown format"))
-        }
+// Parser function receives format, key, and value
+fn my_parser(format: &str, key: &[u8], value: &[u8]) -> Result<String, String> {
+    // Route by key prefix for single-CF databases
+    if format == "fiber" {
+        return match key.first() {
+            Some(0x00) => parse_channel_state(value),
+            Some(0x01) => parse_payment_session(value),
+            _ => Ok("{}".to_string()),
+        };
     }
+    
+    // Or parse by format name
+    match format {
+        "myapp.User" => {
+            let user: User = bincode::deserialize(value).map_err(|e| e.to_string())?;
+            serde_json::to_string_pretty(&user).map_err(|e| e.to_string())
+        }
+        _ => Err(format!("Unknown format: {}", format))
+    }
+}
+
+export_plugin! {
+    formats: ["fiber", "myapp.User"],
+    parse: my_parser
 }
 ```
 
@@ -261,7 +272,7 @@ cargo build --target wasm32-unknown-unknown --release
 
 #### Example: Fiber Network
 
-See `examples/fiber/` for a complete example using a WASM plugin to decode Fiber Network's bincode-serialized channel state.
+See `examples/fiber/` for a complete example using a WASM plugin to decode Fiber Network's bincode-serialized data with prefix-based routing.
 
 ## Keyboard Shortcuts
 

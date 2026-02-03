@@ -2,9 +2,33 @@
 
 This example shows how to configure rocksdb-tui for browsing a [Fiber Network](https://github.com/nervosnetwork/fiber) RocksDB database.
 
+## Data Model
+
+Fiber Network uses a **single column family** (`default`) with **1-byte key prefixes** to distinguish different data types:
+
+```
+Key format: [prefix: 1 byte][type-specific key data]
+```
+
+The WASM plugin inspects `key[0]` to determine the value type and deserialize accordingly.
+
+## Key Prefixes
+
+| Prefix | Data Type | Key Format |
+|--------|-----------|------------|
+| 0x00 | ChannelActorState | peer_id (32) + channel_id (32) |
+| 0x01 | PaymentSession | payment_hash (32) |
+| 0x02 | PeerInfo | peer_id (32) |
+| 0x03 | ChannelAnnouncement | tx_hash (32) + index (4) |
+| 0x04 | NodeAnnouncement | node_id (33) |
+| 0x05 | Invoice | payment_hash (32) |
+| 0x06 | WatchtowerData | channel_id (32) |
+| 0x07 | GraphNode | node_id (33) |
+| 0x08 | GraphEdge | short_channel_id (8) |
+
 ## Prerequisites
 
-1. Build the `fiber-parser` WASM plugin from `crates/fiber-parser/`
+1. Build the `fiber-parser` WASM plugin
 2. Copy the compiled `.wasm` file to `~/.config/rocksdb-tui/plugins/fiber-parser.wasm`
 
 ## Usage
@@ -13,34 +37,31 @@ This example shows how to configure rocksdb-tui for browsing a [Fiber Network](h
 rocksdb-tui --db /path/to/fiber/store --config examples/fiber/config.toml
 ```
 
-## Column Families
+## Plugin Implementation
 
-The config defines parsers for common Fiber Network column families:
+The plugin receives both key and value, routing by key prefix:
 
-| Column Family | Key Format | Value Format |
-|---------------|------------|--------------|
-| channel_actor_state | peer_id + channel_id | fiber.ChannelActorState |
-| payment_session | payment_hash | fiber.PaymentSession |
-| peer_info | peer_id | fiber.PeerInfo |
-| channel_announcement | tx_hash + index | fiber.ChannelAnnouncement |
-| node_announcement | node_id | fiber.NodeAnnouncement |
-| invoice | payment_hash | fiber.Invoice |
-| watchtower | channel_id | fiber.WatchtowerData |
-| graph_node | node_id | fiber.GraphNode |
-| graph_edge | short_channel_id | fiber.GraphEdge |
+```rust
+use rocksdb_tui_plugin_sdk::*;
 
-## Plugin Formats
+fn parse_fiber(format: &str, key: &[u8], value: &[u8]) -> Result<String, String> {
+    if format != "fiber" {
+        return Err("Unknown format".to_string());
+    }
+    
+    match key.first() {
+        Some(0x00) => parse_channel_state(value),
+        Some(0x01) => parse_payment_session(value),
+        Some(0x02) => parse_peer_info(value),
+        // ... etc
+        _ => Ok(format!("{{\"hex\": \"{}\"}}", hex::encode(value))),
+    }
+}
 
-The `fiber-parser.wasm` plugin provides these format handlers:
+export_plugin! {
+    formats: ["fiber"],
+    parse: parse_fiber
+}
+```
 
-- `fiber.ChannelActorState` - Payment channel state
-- `fiber.PaymentSession` - Active payment session
-- `fiber.PeerInfo` - Peer connection info
-- `fiber.ChannelAnnouncement` - Public channel announcement
-- `fiber.NodeAnnouncement` - Public node announcement  
-- `fiber.Invoice` - Payment invoice
-- `fiber.WatchtowerData` - Channel monitoring data
-- `fiber.GraphNode` - Network graph node
-- `fiber.GraphEdge` - Network graph edge
-
-All formats are bincode-serialized Rust structs that get decoded to JSON for display.
+All Fiber data types are bincode-serialized Rust structs that get decoded to JSON for display.

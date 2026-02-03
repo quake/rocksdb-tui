@@ -14,8 +14,9 @@
 //! Return a pointer-length pair (ptr << 32 | len) to a JSON array of supported format strings.
 //! Example: `["fiber.ChannelActorState", "fiber.PaymentSession"]`
 //!
-//! ### `parse(format_ptr: u32, format_len: u32, data_ptr: u32, data_len: u32) -> u64`
+//! ### `parse(format_ptr: u32, format_len: u32, key_ptr: u32, key_len: u32, value_ptr: u32, value_len: u32) -> u64`
 //! Parse binary data according to the specified format.
+//! The key is provided so plugins can use key prefixes to determine the value type.
 //! Returns a pointer-length pair to a JSON string, or 0 on failure.
 
 /// Symbol name for memory allocation function

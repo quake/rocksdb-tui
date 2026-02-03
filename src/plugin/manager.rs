@@ -14,7 +14,7 @@ struct WasmPlugin {
     memory: Memory,
     alloc: TypedFunc<u32, u32>,
     dealloc: TypedFunc<(u32, u32), ()>,
-    parse: TypedFunc<(u32, u32, u32, u32), u64>,
+    parse: TypedFunc<(u32, u32, u32, u32, u32, u32), u64>,
 }
 
 /// Manager for loading and calling WASM plugins
@@ -67,7 +67,7 @@ impl WasmPluginManager {
             .with_context(|| "Plugin missing 'get_formats' export")?;
 
         let parse = instance
-            .get_typed_func::<(u32, u32, u32, u32), u64>(&mut store, EXPORT_PARSE)
+            .get_typed_func::<(u32, u32, u32, u32, u32, u32), u64>(&mut store, EXPORT_PARSE)
             .with_context(|| "Plugin missing 'parse' export")?;
 
         // Call get_formats to get supported format list
@@ -117,17 +117,23 @@ impl WasmPluginManager {
     }
 
     /// Parse data using the appropriate plugin
+    /// The key is provided so plugins can use key prefixes to determine the value type.
     /// Returns the parsed JSON string, or None if format is not supported or parsing fails
-    pub fn parse(&self, format: &str, data: &[u8]) -> Option<String> {
+    pub fn parse(&self, format: &str, key: &[u8], value: &[u8]) -> Option<String> {
         let plugin_idx = *self.format_map.get(format)?;
 
         let mut plugins = self.plugins.borrow_mut();
         let plugin = &mut plugins[plugin_idx];
 
-        Self::parse_with_plugin(plugin, format, data).ok()
+        Self::parse_with_plugin(plugin, format, key, value).ok()
     }
 
-    fn parse_with_plugin(plugin: &mut WasmPlugin, format: &str, data: &[u8]) -> Result<String> {
+    fn parse_with_plugin(
+        plugin: &mut WasmPlugin,
+        format: &str,
+        key: &[u8],
+        value: &[u8],
+    ) -> Result<String> {
         // Allocate and write format string
         let format_bytes = format.as_bytes();
         let format_ptr = plugin
@@ -137,20 +143,28 @@ impl WasmPluginManager {
             .memory
             .write(&mut plugin.store, format_ptr as usize, format_bytes)?;
 
-        // Allocate and write data
-        let data_ptr = plugin.alloc.call(&mut plugin.store, data.len() as u32)?;
+        // Allocate and write key
+        let key_ptr = plugin.alloc.call(&mut plugin.store, key.len() as u32)?;
         plugin
             .memory
-            .write(&mut plugin.store, data_ptr as usize, data)?;
+            .write(&mut plugin.store, key_ptr as usize, key)?;
 
-        // Call parse
+        // Allocate and write value
+        let value_ptr = plugin.alloc.call(&mut plugin.store, value.len() as u32)?;
+        plugin
+            .memory
+            .write(&mut plugin.store, value_ptr as usize, value)?;
+
+        // Call parse(format_ptr, format_len, key_ptr, key_len, value_ptr, value_len)
         let result = plugin.parse.call(
             &mut plugin.store,
             (
                 format_ptr,
                 format_bytes.len() as u32,
-                data_ptr,
-                data.len() as u32,
+                key_ptr,
+                key.len() as u32,
+                value_ptr,
+                value.len() as u32,
             ),
         )?;
 
@@ -160,7 +174,10 @@ impl WasmPluginManager {
             .call(&mut plugin.store, (format_ptr, format_bytes.len() as u32));
         let _ = plugin
             .dealloc
-            .call(&mut plugin.store, (data_ptr, data.len() as u32));
+            .call(&mut plugin.store, (key_ptr, key.len() as u32));
+        let _ = plugin
+            .dealloc
+            .call(&mut plugin.store, (value_ptr, value.len() as u32));
 
         // Read result
         if result == 0 {
@@ -210,7 +227,7 @@ mod tests {
     #[test]
     fn test_parse_unknown_format_returns_none() {
         let manager = WasmPluginManager::new().unwrap();
-        let result = manager.parse("unknown.Format", b"hello");
+        let result = manager.parse("unknown.Format", b"key", b"value");
         assert!(result.is_none());
     }
 }

@@ -226,7 +226,8 @@ impl App {
     }
 
     pub fn current_value(&mut self) -> Option<(String, bool)> {
-        let (_, v) = self.keys.get(self.key_index)?;
+        let (k, v) = self.keys.get(self.key_index)?;
+        let key_data = k.clone();
         let value_data = v.clone();
 
         // Check for value_schema first (takes priority over value_format)
@@ -317,7 +318,10 @@ impl App {
 
         // Handle custom plugin formats
         if let ValueFormat::Custom(ref format_name) = format {
-            match self.plugin_manager.parse(format_name, &value_data) {
+            match self
+                .plugin_manager
+                .parse(format_name, &key_data, &value_data)
+            {
                 Some(json) => return Some((json, true)),
                 None => {
                     return Some((

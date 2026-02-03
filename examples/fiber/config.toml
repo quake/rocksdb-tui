@@ -1,8 +1,12 @@
 # Fiber Network RocksDB configuration for rocksdb-tui
 # Usage: rocksdb-tui --db /path/to/fiber/store --config examples/fiber/config.toml
 #
-# This example demonstrates using WASM plugins for custom value parsing.
-# The fiber-parser plugin provides parsing for Fiber Network's bincode-serialized types.
+# Fiber Network uses a single column family with 1-byte key prefixes to
+# distinguish different data types. The WASM plugin handles routing based
+# on the key prefix.
+#
+# Key format: [prefix: 1 byte][type-specific key data]
+# The plugin inspects key[0] to determine how to parse the value.
 #
 # To use this config:
 # 1. Build the fiber-parser WASM plugin (see crates/fiber-parser/)
@@ -14,114 +18,20 @@ wasm = [
     "~/.config/rocksdb-tui/plugins/fiber-parser.wasm"
 ]
 
-# Channel Actor State - stores the state of payment channels
-# Key: peer_id (32 bytes) + channel_id (32 bytes)
+# Fiber uses a single default column family with prefix-based routing
 [[column_families]]
-name = "channel_actor_state"
-key_schema = """
-seq:
-  - id: peer_id
-    type: bytes
-    size: 32
-  - id: channel_id
-    type: bytes
-    size: 32
-"""
-value_format = "fiber.ChannelActorState"
+name = "default"
+key_schema = "hex"           # Show key as hex (includes prefix byte)
+value_format = "fiber"       # Plugin routes by key[0] prefix
 
-# Payment Sessions - active payment attempts
-# Key: payment_hash (32 bytes)
-[[column_families]]
-name = "payment_session"
-key_schema = """
-seq:
-  - id: payment_hash
-    type: bytes
-    size: 32
-"""
-value_format = "fiber.PaymentSession"
-
-# Peer Info - known peer information
-# Key: peer_id (32 bytes)
-[[column_families]]
-name = "peer_info"
-key_schema = """
-seq:
-  - id: peer_id
-    type: bytes
-    size: 32
-"""
-value_format = "fiber.PeerInfo"
-
-# Channel Announcements - public channel metadata
-# Key: channel_outpoint (36 bytes: tx_hash + index)
-[[column_families]]
-name = "channel_announcement"
-key_schema = """
-seq:
-  - id: tx_hash
-    type: bytes
-    size: 32
-  - id: index
-    type: u4le
-"""
-value_format = "fiber.ChannelAnnouncement"
-
-# Node Announcements - public node metadata
-# Key: node_id (33 bytes, compressed pubkey)
-[[column_families]]
-name = "node_announcement"
-key_schema = """
-seq:
-  - id: node_id
-    type: bytes
-    size: 33
-"""
-value_format = "fiber.NodeAnnouncement"
-
-# Invoices - payment invoices
-# Key: payment_hash (32 bytes)
-[[column_families]]
-name = "invoice"
-key_schema = """
-seq:
-  - id: payment_hash
-    type: bytes
-    size: 32
-"""
-value_format = "fiber.Invoice"
-
-# Watchtower Data - channel monitoring data
-# Key: channel_id (32 bytes)
-[[column_families]]
-name = "watchtower"
-key_schema = """
-seq:
-  - id: channel_id
-    type: bytes
-    size: 32
-"""
-value_format = "fiber.WatchtowerData"
-
-# Graph Nodes - network graph node data
-# Key: node_id (33 bytes)
-[[column_families]]
-name = "graph_node"
-key_schema = """
-seq:
-  - id: node_id
-    type: bytes
-    size: 33
-"""
-value_format = "fiber.GraphNode"
-
-# Graph Edges - network graph channel edges
-# Key: short_channel_id (8 bytes)
-[[column_families]]
-name = "graph_edge"
-key_schema = """
-seq:
-  - id: short_channel_id
-    type: u8le
-"""
-value_format = "fiber.GraphEdge"
+# Known key prefixes in Fiber (for reference):
+# 0x00 - Channel actor state
+# 0x01 - Payment sessions  
+# 0x02 - Peer info
+# 0x03 - Channel announcements
+# 0x04 - Node announcements
+# 0x05 - Invoices
+# 0x06 - Watchtower data
+# 0x07 - Graph nodes
+# 0x08 - Graph edges
+# ... (see Fiber source for complete list)

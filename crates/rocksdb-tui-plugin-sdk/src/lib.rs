@@ -9,10 +9,20 @@
 //! use rocksdb_tui_plugin_sdk::*;
 //!
 //! // Define your parser function
-//! fn parse_format(format: &str, data: &[u8]) -> Result<String, String> {
+//! // The key is provided so plugins can route based on key prefix
+//! fn parse_format(format: &str, key: &[u8], value: &[u8]) -> Result<String, String> {
+//!     // For single-CF databases with prefix routing (like Fiber):
+//!     if format == "fiber" {
+//!         return match key.first() {
+//!             Some(0x00) => parse_channel_state(value),
+//!             Some(0x01) => parse_payment_session(value),
+//!             _ => Err("Unknown prefix".to_string()),
+//!         };
+//!     }
+//!     // For format-per-type databases:
 //!     match format {
 //!         "myapp.User" => {
-//!             let user: User = bincode::deserialize(data).map_err(|e| e.to_string())?;
+//!             let user: User = bincode::deserialize(value).map_err(|e| e.to_string())?;
 //!             serde_json::to_string_pretty(&user).map_err(|e| e.to_string())
 //!         }
 //!         _ => Err(format!("Unknown format: {}", format))
@@ -21,7 +31,7 @@
 //!
 //! // Export the plugin
 //! export_plugin! {
-//!     formats: ["myapp.User", "myapp.Transaction"],
+//!     formats: ["fiber", "myapp.User"],
 //!     parse: parse_format
 //! }
 //! ```
@@ -103,18 +113,29 @@ pub fn pack_formats(formats: &[&str]) -> u64 {
 
 /// Macro to export a plugin with the required WASM interface
 ///
+/// The parse function receives format, key, and value. The key is provided
+/// so plugins can route parsing based on key prefixes (useful for single-CF
+/// databases like Fiber that use prefix bytes to distinguish value types).
+///
 /// # Example
 ///
 /// ```ignore
 /// use rocksdb_tui_plugin_sdk::*;
 ///
-/// fn my_parser(format: &str, data: &[u8]) -> Result<String, String> {
-///     // Parse data and return JSON
+/// fn my_parser(format: &str, key: &[u8], value: &[u8]) -> Result<String, String> {
+///     // Route by key prefix for single-CF databases
+///     if format == "mydb" {
+///         return match key.first() {
+///             Some(0x00) => parse_type_a(value),
+///             Some(0x01) => parse_type_b(value),
+///             _ => Ok("{}".to_string()),
+///         };
+///     }
 ///     Ok("{}".to_string())
 /// }
 ///
 /// export_plugin! {
-///     formats: ["my.Format1", "my.Format2"],
+///     formats: ["mydb"],
 ///     parse: my_parser
 /// }
 /// ```
@@ -144,13 +165,16 @@ macro_rules! export_plugin {
         pub extern "C" fn parse(
             format_ptr: u32,
             format_len: u32,
-            data_ptr: u32,
-            data_len: u32,
+            key_ptr: u32,
+            key_len: u32,
+            value_ptr: u32,
+            value_len: u32,
         ) -> u64 {
             let format = unsafe { $crate::read_str(format_ptr, format_len) };
-            let data = unsafe { $crate::read_bytes(data_ptr, data_len) };
+            let key = unsafe { $crate::read_bytes(key_ptr, key_len) };
+            let value = unsafe { $crate::read_bytes(value_ptr, value_len) };
 
-            match ($parse_fn)(format, data) {
+            match ($parse_fn)(format, key, value) {
                 Ok(json) => $crate::pack_string(&json),
                 Err(e) => {
                     let error_json = serde_json::json!({
