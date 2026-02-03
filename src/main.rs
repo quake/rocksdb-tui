@@ -2,6 +2,10 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
+mod config;
+
+use config::Config;
+
 #[derive(Parser, Debug)]
 #[command(name = "rocksdb-tui")]
 #[command(about = "A TUI browser for RocksDB databases")]
@@ -22,9 +26,13 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    let config = match &args.config {
+        Some(path) => Config::load(path)?,
+        None => Config::default(),
+    };
+
     println!("Database: {:?}", args.db);
-    println!("Config: {:?}", args.config);
-    println!("Secondary: {:?}", args.secondary);
+    println!("Config: {:?}", config);
 
     Ok(())
 }
