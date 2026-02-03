@@ -1,4 +1,5 @@
 mod key;
+pub mod key_schema;
 pub mod molecule;
 pub mod protobuf;
 mod value;
