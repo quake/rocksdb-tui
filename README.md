@@ -2,6 +2,10 @@
 
 A TUI browser for RocksDB databases using Secondary mode (read-only, safe).
 
+> **Stop shutting down your services just to inspect the database. Stop staring at hex dumps trying to guess what the data means.**
+>
+> `rocksdb-tui` connects via Secondary read-only mode — no locks, no risk, safe for production. It automatically decodes Protobuf, MessagePack, Molecule and other binary formats into readable JSON. Browse millions of keys with pagination, search by prefix, and refresh live data — all from your terminal.
+
 ## Features
 
 - Connect to any local RocksDB in read-only Secondary mode (no locks, safe for production)
