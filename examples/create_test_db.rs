@@ -45,35 +45,33 @@ fn main() {
     )
     .unwrap();
 
-    // Add some logs
+    // Add some logs with u64 sequence number as key (demonstrates u8le key_schema)
     let logs_cf = db.cf_handle("logs").unwrap();
-    for i in 0..200 {
-        let key = format!("log:{:05}", i);
+    for i in 0u64..20 {
+        let key = i.to_le_bytes(); // u64 little-endian key
         let value = format!("Log entry {}", i);
-        db.put_cf(&logs_cf, key.as_bytes(), value.as_bytes())
-            .unwrap();
+        db.put_cf(&logs_cf, &key, value.as_bytes()).unwrap();
     }
 
-    // Add MessagePack data to cache CF
+    // Add MessagePack data to cache CF with binary hash keys (demonstrates hex key_schema)
     let cache_cf = db.cf_handle("cache").unwrap();
     let cache_data = vec![
         (
-            "cache:session:1",
+            [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11], // 8-byte hash key
             serde_json::json!({"user_id": 1001, "token": "abc123", "expires": 3600}),
         ),
         (
-            "cache:session:2",
+            [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88],
             serde_json::json!({"user_id": 1002, "token": "def456", "expires": 7200}),
         ),
         (
-            "cache:config",
+            [0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0xba, 0xbe],
             serde_json::json!({"theme": "dark", "language": "en", "notifications": true}),
         ),
     ];
     for (key, value) in cache_data {
         let msgpack_bytes = rmp_serde::to_vec(&value).unwrap();
-        db.put_cf(&cache_cf, key.as_bytes(), &msgpack_bytes)
-            .unwrap();
+        db.put_cf(&cache_cf, &key, &msgpack_bytes).unwrap();
     }
 
     // Add Protobuf data to orders CF

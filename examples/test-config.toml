@@ -8,14 +8,16 @@ name = "users"
 key_schema = "string"
 value_format = "json"
 
+# Demonstrates u8le key_schema (log sequence number as u64)
 [[column_families]]
 name = "logs"
-key_schema = "string"
+key_schema = "u8le"
 value_format = "string"
 
+# Demonstrates hex key_schema (binary hash keys)
 [[column_families]]
 name = "cache"
-key_schema = "string"
+key_schema = "hex"
 value_format = "msgpack"
 
 [[column_families]]
