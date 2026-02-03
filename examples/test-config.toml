@@ -1,0 +1,9 @@
+[[column_families]]
+name = "users"
+key_format = "string"
+value_format = "json"
+
+[[column_families]]
+name = "logs"
+key_format = "string"
+value_format = "string"
