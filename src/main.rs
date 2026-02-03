@@ -3,8 +3,10 @@ use clap::Parser;
 use std::path::PathBuf;
 
 mod config;
+mod db;
 
 use config::Config;
+use db::SecondaryDb;
 
 #[derive(Parser, Debug)]
 #[command(name = "rocksdb-tui")]
@@ -26,13 +28,15 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let config = match &args.config {
+    let _config = match &args.config {
         Some(path) => Config::load(path)?,
         None => Config::default(),
     };
 
-    println!("Database: {:?}", args.db);
-    println!("Config: {:?}", config);
+    let db = SecondaryDb::open(&args.db, args.secondary.as_deref())?;
+
+    println!("Connected to database: {:?}", args.db);
+    println!("Column families: {:?}", db.column_families());
 
     Ok(())
 }
