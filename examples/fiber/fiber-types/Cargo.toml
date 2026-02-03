@@ -1,0 +1,8 @@
+[package]
+name = "fiber-types"
+version = "0.1.0"
+edition = "2021"
+description = "Simplified Fiber Network types for rocksdb-tui WASM plugin"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

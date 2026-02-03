@@ -182,23 +182,23 @@ seq:
         let toml = r#"
 [plugins]
 wasm = [
-    "~/.config/rocksdb-tui/plugins/fiber.wasm",
+    "~/.config/rocksdb-tui/plugins/myapp.wasm",
     "/absolute/path/to/other.wasm"
 ]
 
 [[column_families]]
 name = "channels"
-value_format = "fiber.ChannelActorState"
+value_format = "myapp.ChannelState"
 "#;
         let config: Config = toml::from_str(toml).unwrap();
         assert_eq!(config.plugins.wasm.len(), 2);
         assert_eq!(
             config.plugins.wasm[0],
-            "~/.config/rocksdb-tui/plugins/fiber.wasm"
+            "~/.config/rocksdb-tui/plugins/myapp.wasm"
         );
         assert_eq!(
             config.column_families[0].value_format,
-            ValueFormat::Custom("fiber.ChannelActorState".to_string())
+            ValueFormat::Custom("myapp.ChannelState".to_string())
         );
     }
 

@@ -27,14 +27,16 @@ A TUI browser for RocksDB databases using Secondary mode (read-only, safe).
 ```bash
 # Build the demo WASM plugin (requires wasm32 target)
 rustup target add wasm32-unknown-unknown
-cargo build --release --target wasm32-unknown-unknown -p demo-parser
-cp target/wasm32-unknown-unknown/release/demo_parser.wasm examples/
+cd examples/plugin-demo/demo-parser
+cargo build --release --target wasm32-unknown-unknown
+cp target/wasm32-unknown-unknown/release/demo_parser.wasm ../
+cd ../../..
 
 # Create a test database with sample data
 cargo run --example create_test_db
 
 # Run the TUI with the test database
-cargo run -- --db /tmp/rocksdb-tui-test-db --config examples/test-config.toml
+cargo run -- --db /tmp/rocksdb-tui-test-db --config examples/plugin-demo/test-config.toml
 ```
 
 The test database includes various data formats:
@@ -214,14 +216,14 @@ For custom binary formats not covered by built-in parsers, rocksdb-tui supports 
 ```toml
 [plugins]
 wasm = [
-    "~/.config/rocksdb-tui/plugins/fiber-parser.wasm",
+    "~/.config/rocksdb-tui/plugins/my-parser.wasm",
     "/absolute/path/to/another-plugin.wasm"
 ]
 
 [[column_families]]
 name = "default"
 key_schema = "hex"
-value_format = "fiber"  # Plugin receives key + value, routes by key prefix
+value_format = "myapp"  # Plugin receives key + value, routes by key prefix
 ```
 
 The `value_format` can be any string. If it doesn't match a built-in format (string, hex, json, msgpack, protobuf, molecule), rocksdb-tui looks for a plugin that handles that format.
@@ -244,7 +246,7 @@ The packed return value encodes `(ptr << 32) | len`.
 
 #### Writing a Plugin
 
-Use the `rocksdb-tui-plugin-sdk` crate (see `crates/rocksdb-tui-plugin-sdk/`):
+Use the `rocksdb-tui-plugin-sdk` crate (see `plugin-sdk/`):
 
 ```rust
 use rocksdb_tui_plugin_sdk::*;
@@ -283,9 +285,9 @@ cargo build --target wasm32-unknown-unknown --release
 
 #### Example: Demo Plugin
 
-See `crates/demo-parser/` and `crates/demo-types/` for a complete example:
-- `demo-types`: Third-party library defining types with bincode serialization
-- `demo-parser`: WASM plugin supporting both key-prefix routing and format-based routing
+See `examples/plugin-demo/` for a complete example:
+- `demo-types/`: Third-party library defining types with bincode serialization
+- `demo-parser/`: WASM plugin supporting both key-prefix routing and format-based routing
 
 The test database (`cargo run --example create_test_db`) includes demo data for both modes.
 

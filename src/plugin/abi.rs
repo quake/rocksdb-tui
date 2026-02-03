@@ -12,7 +12,7 @@
 //!
 //! ### `get_formats() -> u64`
 //! Return a pointer-length pair (ptr << 32 | len) to a JSON array of supported format strings.
-//! Example: `["fiber.ChannelActorState", "fiber.PaymentSession"]`
+//! Example: `["myapp.TypeA", "myapp.TypeB"]`
 //!
 //! ### `parse(format_ptr: u32, format_len: u32, key_ptr: u32, key_len: u32, value_ptr: u32, value_len: u32) -> u64`
 //! Parse binary data according to the specified format.

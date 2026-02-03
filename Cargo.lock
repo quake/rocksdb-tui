@@ -603,16 +603,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-parser"
-version = "0.1.0"
-dependencies = [
- "demo-types",
- "rocksdb-tui-plugin-sdk",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "demo-types"
 version = "0.1.0"
 dependencies = [
@@ -709,24 +699,6 @@ name = "fallible-iterator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
-
-[[package]]
-name = "fiber-parser"
-version = "0.1.0"
-dependencies = [
- "fiber-types",
- "rocksdb-tui-plugin-sdk",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "fiber-types"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "serde",
-]
 
 [[package]]
 name = "find-msvc-tools"
@@ -1657,14 +1629,6 @@ dependencies = [
  "serde_yaml",
  "toml",
  "wasmtime",
-]
-
-[[package]]
-name = "rocksdb-tui-plugin-sdk"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde_json",
 ]
 
 [[package]]
