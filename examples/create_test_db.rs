@@ -319,10 +319,9 @@ fn main() {
     println!("  - Mode 1 (key-prefix): 'demo' CF with value_format = \"demo\"");
     println!("  - Mode 2 (format-based): 'products/customers/transactions' CFs");
     println!("    with value_format = \"demo.Product/demo.Customer/demo.Transaction\"");
-    println!("\nTo use with WASM plugin:");
+    println!("\nTo build WASM plugin (if not already built):");
     println!("  cargo build --release --target wasm32-unknown-unknown -p demo-parser");
-    println!("  mkdir -p ~/.config/rocksdb-tui/plugins");
-    println!("  cp target/wasm32-unknown-unknown/release/demo_parser.wasm ~/.config/rocksdb-tui/plugins/");
+    println!("  cp target/wasm32-unknown-unknown/release/demo_parser.wasm examples/");
 }
 
 /// Build a molecule-encoded Account table

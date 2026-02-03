@@ -61,10 +61,10 @@ seq:
 """
 
 # WASM Plugin Configuration
-# Build the plugin: cargo build --release --target wasm32-unknown-unknown -p demo-parser
-# Install: cp target/wasm32-unknown-unknown/release/demo_parser.wasm ~/.config/rocksdb-tui/plugins/
+# Build: cargo build --release --target wasm32-unknown-unknown -p demo-parser
+# The plugin is located at: examples/demo_parser.wasm
 [plugins]
-wasm = ["~/.config/rocksdb-tui/plugins/demo_parser.wasm"]
+wasm = ["examples/demo_parser.wasm"]
 
 # ========================================
 # Mode 1: Key-prefix routing (single CF)
