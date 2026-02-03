@@ -199,6 +199,14 @@ fn format_number(n: u64) -> String {
 }
 
 fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
+    // Show status message if present, otherwise show normal status bar
+    if let Some(ref msg) = app.status_message {
+        let paragraph = Paragraph::new(format!(" {} ", msg))
+            .style(Style::default().fg(Color::Black).bg(Color::Green));
+        frame.render_widget(paragraph, area);
+        return;
+    }
+
     let key_count = if app.search_prefix.is_some() {
         format!("Filtered: {}", app.keys.len())
     } else {
@@ -208,7 +216,7 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     };
 
     let status = format!(
-        " CF: {} | Keys: {} | Format: {:?} | [?] Help [/] Search [q] Quit ",
+        " CF: {} | Keys: {} | Format: {:?} | [?] Help [/] Search [r] Refresh [q] Quit ",
         app.current_cf().unwrap_or("none"),
         key_count,
         app.value_format()

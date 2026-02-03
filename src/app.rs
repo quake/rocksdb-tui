@@ -26,6 +26,7 @@ pub struct App {
     pub should_quit: bool,
     pub proto_registry: ProtoRegistry,
     pub molecule_registry: MoleculeRegistry,
+    pub status_message: Option<String>,
 }
 
 impl App {
@@ -44,6 +45,7 @@ impl App {
             should_quit: false,
             proto_registry: ProtoRegistry::new(),
             molecule_registry: MoleculeRegistry::new(),
+            status_message: None,
         };
         app.load_keys()?;
         Ok(app)
@@ -272,5 +274,16 @@ impl App {
             Focus::Keys => Focus::ColumnFamilies,
             Focus::Value => Focus::Keys,
         };
+    }
+
+    pub fn refresh(&mut self) -> Result<()> {
+        self.db.try_catch_up_with_primary()?;
+        self.load_keys()?;
+        self.status_message = Some("Refreshed from primary".to_string());
+        Ok(())
+    }
+
+    pub fn clear_status(&mut self) {
+        self.status_message = None;
     }
 }

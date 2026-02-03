@@ -72,7 +72,9 @@ fn main() -> Result<()> {
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
     const DEBOUNCE_MS: u64 = 200;
+    const STATUS_TIMEOUT_MS: u64 = 3000;
     let mut pending_search: Option<Instant> = None;
+    let mut status_shown_at: Option<Instant> = None;
 
     loop {
         terminal.draw(|f| ui::draw(f, app))?;
@@ -82,6 +84,14 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
             if last_input.elapsed() >= Duration::from_millis(DEBOUNCE_MS) {
                 app.execute_search()?;
                 pending_search = None;
+            }
+        }
+
+        // Clear status message after timeout
+        if let Some(shown_at) = status_shown_at {
+            if shown_at.elapsed() >= Duration::from_millis(STATUS_TIMEOUT_MS) {
+                app.clear_status();
+                status_shown_at = None;
             }
         }
 
@@ -181,6 +191,10 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
                     }
                     KeyCode::Char('?') => {
                         // TODO: Show help popup
+                    }
+                    KeyCode::Char('r') => {
+                        app.refresh()?;
+                        status_shown_at = Some(Instant::now());
                     }
                     _ => {}
                 }
