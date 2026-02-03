@@ -97,11 +97,20 @@ fn draw_key_list(frame: &mut Frame, app: &App, area: Rect) {
 
     // Key list
     let keys = app.formatted_keys();
-    let mut items: Vec<ListItem> = keys.iter().map(|k| ListItem::new(k.as_str())).collect();
 
-    if app.has_more_keys {
-        items.push(ListItem::new("▼ more...").style(Style::default().fg(Color::DarkGray)));
-    }
+    let (items, show_empty_message): (Vec<ListItem>, Option<&str>) = if keys.is_empty() {
+        if app.search_prefix.is_some() {
+            (vec![], Some("No matching keys found"))
+        } else {
+            (vec![], Some("No keys in this column family"))
+        }
+    } else {
+        let mut items: Vec<ListItem> = keys.iter().map(|k| ListItem::new(k.as_str())).collect();
+        if app.has_more_keys {
+            items.push(ListItem::new("▼ more...").style(Style::default().fg(Color::DarkGray)));
+        }
+        (items, None)
+    };
 
     let list = List::new(items)
         .block(
@@ -114,9 +123,23 @@ fn draw_key_list(frame: &mut Frame, app: &App, area: Rect) {
         .highlight_symbol("> ");
 
     let mut state = ListState::default();
-    state.select(Some(app.key_index));
+    if !keys.is_empty() {
+        state.select(Some(app.key_index));
+    }
 
     frame.render_stateful_widget(list, chunks[1], &mut state);
+
+    // Show empty message if needed
+    if let Some(msg) = show_empty_message {
+        let inner = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Min(0)])
+            .split(chunks[1]);
+        let empty_msg = Paragraph::new(msg)
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(ratatui::layout::Alignment::Center);
+        frame.render_widget(empty_msg, inner[1]);
+    }
 }
 
 fn draw_value_view(frame: &mut Frame, app: &App, area: Rect) {
@@ -127,19 +150,31 @@ fn draw_value_view(frame: &mut Frame, app: &App, area: Rect) {
         Style::default()
     };
 
-    let (content, success) = app.current_value().unwrap_or_default();
-
-    let mut lines = Vec::new();
-    if !success {
-        lines.push(Line::from(Span::styled(
-            "⚠ Parse failed, showing hex",
-            Style::default().fg(Color::Yellow),
-        )));
-        lines.push(Line::from(""));
-    }
-    for line in content.lines() {
-        lines.push(Line::from(line));
-    }
+    let lines: Vec<Line> = if app.keys.is_empty() {
+        let msg = if app.search_prefix.is_some() {
+            "No matching keys"
+        } else {
+            "No keys to display"
+        };
+        vec![Line::from(Span::styled(
+            msg,
+            Style::default().fg(Color::DarkGray),
+        ))]
+    } else {
+        let (content, success) = app.current_value().unwrap_or_default();
+        let mut lines = Vec::new();
+        if !success {
+            lines.push(Line::from(Span::styled(
+                "⚠ Parse failed, showing hex",
+                Style::default().fg(Color::Yellow),
+            )));
+            lines.push(Line::from(""));
+        }
+        for line in content.lines() {
+            lines.push(Line::from(line.to_string()));
+        }
+        lines
+    };
 
     let paragraph = Paragraph::new(lines)
         .block(
