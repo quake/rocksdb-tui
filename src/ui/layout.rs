@@ -71,10 +71,24 @@ fn draw_key_list(frame: &mut Frame, app: &mut App, area: Rect) {
         Style::default()
     };
 
-    // Split area for search box and key list
+    // Get formatted key for tooltip (before splitting area)
+    let formatted_key = app.formatted_current_key();
+    let has_tooltip = formatted_key.is_some();
+
+    // Split area for search box, key list, and optional tooltip
+    let constraints = if has_tooltip {
+        vec![
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(3),
+        ]
+    } else {
+        vec![Constraint::Length(3), Constraint::Min(0)]
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .constraints(constraints)
         .split(area);
 
     // Search box
@@ -140,6 +154,19 @@ fn draw_key_list(frame: &mut Frame, app: &mut App, area: Rect) {
             .alignment(ratatui::layout::Alignment::Center);
         frame.render_widget(empty_msg, inner[1]);
     }
+
+    // Draw tooltip for formatted key
+    if let Some(formatted) = formatted_key {
+        let tooltip = Paragraph::new(formatted)
+            .style(Style::default().fg(Color::Cyan))
+            .block(
+                Block::default()
+                    .title("Decoded Key")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Cyan)),
+            );
+        frame.render_widget(tooltip, chunks[2]);
+    }
 }
 
 fn draw_value_view(frame: &mut Frame, app: &mut App, area: Rect) {
@@ -161,18 +188,8 @@ fn draw_value_view(frame: &mut Frame, app: &mut App, area: Rect) {
             Style::default().fg(Color::DarkGray),
         ))]
     } else {
-        let mut lines = Vec::new();
-
-        // Show formatted key if different from hex
-        if let Some(formatted_key) = app.formatted_current_key() {
-            lines.push(Line::from(Span::styled(
-                format!("Key: {}", formatted_key),
-                Style::default().fg(Color::Cyan),
-            )));
-            lines.push(Line::from(""));
-        }
-
         let (content, success) = app.current_value().unwrap_or_default();
+        let mut lines = Vec::new();
         if !success {
             lines.push(Line::from(Span::styled(
                 "⚠ Parse failed, showing hex",
