@@ -1,13 +1,19 @@
 # CKB RocksDB configuration for rocksdb-tui
 # Usage: rocksdb-tui --db /path/to/ckb/data/db --config examples/ckb/config.toml
+#
+# Key format reference: https://github.com/nervosnetwork/ckb
 
-# Column 0: Chain index (block number -> block hash mapping)
+# Column 0: COLUMN_INDEX - Bidirectional block_number <-> block_hash mapping
+# Key can be either:
+#   - block_number (8 bytes LE) -> block_hash
+#   - block_hash (32 bytes) -> block_number
 [[column_families]]
 name = "0"
-key_schema = "u8be"
+key_schema = "hex"
 value_format = "hex"
 
-# Column 1: Block headers (key: block hash 32 bytes)
+# Column 1: COLUMN_BLOCK_HEADER - Block headers
+# Key: block_hash (32 bytes)
 [[column_families]]
 name = "1"
 key_schema = """
@@ -20,7 +26,8 @@ value_format = "molecule"
 mol_file = "examples/ckb/schemas/extensions.mol"
 mol_type = "HeaderView"
 
-# Column 2: Block bodies (transactions, key: block hash)
+# Column 2: COLUMN_BLOCK_BODY - Transactions in blocks
+# Key: TransactionKey = block_hash (32 bytes) + index (4 bytes BE)
 [[column_families]]
 name = "2"
 key_schema = """
@@ -28,12 +35,15 @@ seq:
   - id: block_hash
     type: bytes
     size: 32
+  - id: tx_index
+    type: u4be
 """
 value_format = "molecule"
 mol_file = "examples/ckb/schemas/blockchain.mol"
-mol_type = "TransactionVec"
+mol_type = "TransactionView"
 
-# Column 3: Uncle blocks (key: block hash)
+# Column 3: COLUMN_BLOCK_UNCLE - Uncle blocks
+# Key: block_hash (32 bytes)
 [[column_families]]
 name = "3"
 key_schema = """
@@ -46,13 +56,15 @@ value_format = "molecule"
 mol_file = "examples/ckb/schemas/extensions.mol"
 mol_type = "UncleBlockVecView"
 
-# Column 4: Meta data
+# Column 4: COLUMN_META - Metadata with string keys
+# Known keys: TIP_HEADER, CURRENT_EPOCH, LATEST_BUILT_FILTER_DATA, chain-spec-hash, db-version
 [[column_families]]
 name = "4"
 key_schema = "string"
 value_format = "hex"
 
-# Column 5: Transaction info (key: tx_hash 32 bytes)
+# Column 5: COLUMN_TRANSACTION_INFO - Transaction index
+# Key: tx_hash (32 bytes)
 [[column_families]]
 name = "5"
 key_schema = """
@@ -65,7 +77,8 @@ value_format = "molecule"
 mol_file = "examples/ckb/schemas/extensions.mol"
 mol_type = "TransactionInfo"
 
-# Column 6: Block extension info (key: block hash)
+# Column 6: COLUMN_BLOCK_EXT - Block extension metadata
+# Key: block_hash (32 bytes)
 [[column_families]]
 name = "6"
 key_schema = """
@@ -78,7 +91,8 @@ value_format = "molecule"
 mol_file = "examples/ckb/schemas/extensions.mol"
 mol_type = "BlockExt"
 
-# Column 7: Block proposal IDs (key: block hash)
+# Column 7: COLUMN_BLOCK_PROPOSAL_IDS - Proposal short IDs
+# Key: block_hash (32 bytes)
 [[column_families]]
 name = "7"
 key_schema = """
@@ -91,7 +105,8 @@ value_format = "molecule"
 mol_file = "examples/ckb/schemas/blockchain.mol"
 mol_type = "ProposalShortIdVec"
 
-# Column 8: Block epoch mapping (key: block hash)
+# Column 8: COLUMN_BLOCK_EPOCH - Block hash to epoch hash mapping
+# Key: block_hash (32 bytes)
 [[column_families]]
 name = "8"
 key_schema = """
@@ -102,15 +117,19 @@ seq:
 """
 value_format = "hex"
 
-# Column 9: Epoch data (key: epoch number)
+# Column 9: COLUMN_EPOCH - Bidirectional epoch_number <-> epoch_hash mapping
+# Key can be either:
+#   - epoch_hash (32 bytes) -> EpochExt
+#   - epoch_number (8 bytes LE) -> epoch_hash
 [[column_families]]
 name = "9"
-key_schema = "u8be"
+key_schema = "hex"
 value_format = "molecule"
 mol_file = "examples/ckb/schemas/extensions.mol"
 mol_type = "EpochExt"
 
-# Column 10: Cell (live cells, key: OutPoint = tx_hash + index)
+# Column 10: COLUMN_CELL - Live cells
+# Key: CellKey = tx_hash (32 bytes) + index (4 bytes BE)
 [[column_families]]
 name = "10"
 key_schema = """
@@ -119,19 +138,28 @@ seq:
     type: bytes
     size: 32
   - id: index
-    type: u4le
+    type: u4be
 """
 value_format = "molecule"
 mol_file = "examples/ckb/schemas/extensions.mol"
 mol_type = "CellEntry"
 
-# Column 11: Uncles (consensus tracking)
+# Column 11: COLUMN_UNCLES - Uncle block headers
+# Key: uncle_hash (32 bytes)
 [[column_families]]
 name = "11"
-key_schema = "hex"
-value_format = "hex"
+key_schema = """
+seq:
+  - id: uncle_hash
+    type: bytes
+    size: 32
+"""
+value_format = "molecule"
+mol_file = "examples/ckb/schemas/extensions.mol"
+mol_type = "HeaderView"
 
-# Column 12: Cell data (key: OutPoint = tx_hash + index)
+# Column 12: COLUMN_CELL_DATA - Cell data storage
+# Key: CellKey = tx_hash (32 bytes) + index (4 bytes BE)
 [[column_families]]
 name = "12"
 key_schema = """
@@ -140,27 +168,42 @@ seq:
     type: bytes
     size: 32
   - id: index
-    type: u4le
+    type: u4be
 """
 value_format = "molecule"
 mol_file = "examples/ckb/schemas/extensions.mol"
 mol_type = "CellDataEntry"
 
-# Column 13: Number-Hash mapping
+# Column 13: COLUMN_NUMBER_HASH - Block number + hash pairs
+# Key: NumberHash = number (8 bytes LE) + block_hash (32 bytes)
 [[column_families]]
 name = "13"
-key_schema = "hex"
-value_format = "molecule"
-mol_file = "examples/ckb/schemas/extensions.mol"
-mol_type = "NumberHash"
-
-# Column 14: Cell data hash
-[[column_families]]
-name = "14"
-key_schema = "hex"
+key_schema = """
+seq:
+  - id: block_number
+    type: u8le
+  - id: block_hash
+    type: bytes
+    size: 32
+"""
 value_format = "hex"
 
-# Column 15: Block extension data (key: block hash)
+# Column 14: COLUMN_CELL_DATA_HASH - Cell data hash lookup
+# Key: CellKey = tx_hash (32 bytes) + index (4 bytes BE)
+[[column_families]]
+name = "14"
+key_schema = """
+seq:
+  - id: tx_hash
+    type: bytes
+    size: 32
+  - id: index
+    type: u4be
+"""
+value_format = "hex"
+
+# Column 15: COLUMN_BLOCK_EXTENSION - Block extension data (post-ckb2021)
+# Key: block_hash (32 bytes)
 [[column_families]]
 name = "15"
 key_schema = """
@@ -171,13 +214,15 @@ seq:
 """
 value_format = "hex"
 
-# Column 16: Chain root MMR
+# Column 16: COLUMN_CHAIN_ROOT_MMR - MMR data for light clients
+# Key: position (8 bytes LE)
 [[column_families]]
 name = "16"
-key_schema = "u8be"
+key_schema = "u8le"
 value_format = "hex"
 
-# Column 17: Block filter data (key: block hash)
+# Column 17: COLUMN_BLOCK_FILTER - Block filter data (BIP-158 style)
+# Key: block_hash (32 bytes)
 [[column_families]]
 name = "17"
 key_schema = """
@@ -188,7 +233,8 @@ seq:
 """
 value_format = "hex"
 
-# Column 18: Block filter hash (key: block hash)
+# Column 18: COLUMN_BLOCK_FILTER_HASH - Block filter hash
+# Key: block_hash (32 bytes)
 [[column_families]]
 name = "18"
 key_schema = """
