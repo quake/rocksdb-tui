@@ -108,6 +108,11 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
                         app.search_active = true;
                         app.focus = Focus::Keys;
                     }
+                    KeyCode::Esc => {
+                        if app.search_prefix.is_some() {
+                            app.clear_search()?;
+                        }
+                    }
                     KeyCode::Char('j') | KeyCode::Down => match app.focus {
                         Focus::ColumnFamilies => {
                             app.next_cf()?;
