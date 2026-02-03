@@ -47,7 +47,7 @@ fn main() {
 
     // Add some logs with u64 sequence number as key (demonstrates u8le key_schema)
     let logs_cf = db.cf_handle("logs").unwrap();
-    for i in 0u64..20 {
+    for i in 0u64..500 {
         let key = i.to_le_bytes(); // u64 little-endian key
         let value = format!("Log entry {}", i);
         db.put_cf(&logs_cf, &key, value.as_bytes()).unwrap();
