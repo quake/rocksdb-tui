@@ -97,10 +97,10 @@ impl App {
 
     pub fn execute_search(&mut self) -> Result<()> {
         if self.search_input.is_empty() {
-            self.clear_search()?;
+            self.search_prefix = None;
+            self.load_keys()?;
         } else {
             self.search_prefix = Some(self.search_input.as_bytes().to_vec());
-            self.search_active = false;
             self.load_keys()?;
         }
         Ok(())
