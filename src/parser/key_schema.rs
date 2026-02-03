@@ -97,10 +97,19 @@ impl KeySchema {
     pub fn decode(&self, data: &[u8]) -> String {
         let mut cursor = 0;
         let mut parts = Vec::new();
+        let is_simple = self.fields.len() == 1;
 
         for field in &self.fields {
             match self.decode_field(field, data, &mut cursor) {
-                Ok(value) => parts.push(format!("{}: {}", field.id, value)),
+                Ok(value) => {
+                    if is_simple {
+                        // Simple preset (single field): just show the value
+                        parts.push(value);
+                    } else {
+                        // Complex schema (multiple fields): show field names
+                        parts.push(format!("{}: {}", field.id, value));
+                    }
+                }
                 Err(needed) => {
                     parts.push(format!("<truncated: expected {} more bytes>", needed));
                     break;
@@ -525,7 +534,8 @@ seq:
         let schema = KeySchema::parse(yaml).unwrap();
         let data = 12345u64.to_le_bytes();
         let result = schema.decode(&data);
-        assert_eq!(result, "num: 12345");
+        // Single field: no field name prefix
+        assert_eq!(result, "12345");
     }
 
     #[test]
@@ -573,7 +583,8 @@ seq:
         let schema = KeySchema::parse(yaml).unwrap();
         let data = [0x01, 0x00, 0x00, 0x00, 0xde, 0xad]; // 4 + 2 extra
         let result = schema.decode(&data);
-        assert!(result.contains("num: 1"));
+        // Single field: no field name prefix
+        assert!(result.contains("1"));
         assert!(result.contains("<extra:"));
     }
 
@@ -592,7 +603,8 @@ enums:
         let schema = KeySchema::parse(yaml).unwrap();
         let data = [0x01];
         let result = schema.decode(&data);
-        assert_eq!(result, "key_type: key_types::body");
+        // Single field: no field name prefix
+        assert_eq!(result, "key_types::body");
     }
 
     #[test]
@@ -609,7 +621,8 @@ enums:
         let schema = KeySchema::parse(yaml).unwrap();
         let data = [0x99];
         let result = schema.decode(&data);
-        assert_eq!(result, "key_type: unknown(153)");
+        // Single field: no field name prefix
+        assert_eq!(result, "unknown(153)");
     }
 
     #[test]
@@ -622,7 +635,8 @@ seq:
         let schema = KeySchema::parse(yaml).unwrap();
         let data = b"hello\0";
         let result = schema.decode(data);
-        assert_eq!(result, "name: \"hello\"");
+        // Single field: no field name prefix
+        assert_eq!(result, "\"hello\"");
     }
 
     #[test]
@@ -636,7 +650,8 @@ seq:
         // VLQ encoding of 300: 0x82 0x2c (10000010 00101100)
         let data = [0x82, 0x2c];
         let result = schema.decode(&data);
-        assert_eq!(result, "length: 300");
+        // Single field: no field name prefix
+        assert_eq!(result, "300");
     }
 
     #[test]
@@ -647,7 +662,8 @@ seq:
             .unwrap()
             .unwrap();
         let data = 42u64.to_le_bytes();
-        assert_eq!(schema.decode(&data), "value: 42");
+        // Single field preset: no field name prefix
+        assert_eq!(schema.decode(&data), "42");
     }
 
     #[test]
@@ -672,6 +688,7 @@ seq:
             .unwrap()
             .unwrap();
         let data = [0x01, 0x00, 0x00, 0x00];
-        assert_eq!(schema.decode(&data), "num: 1");
+        // Single field: no field name prefix
+        assert_eq!(schema.decode(&data), "1");
     }
 }
