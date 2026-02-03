@@ -93,6 +93,212 @@ impl KeySchema {
 
         Ok(KeySchema { fields, enums })
     }
+
+    pub fn decode(&self, data: &[u8]) -> String {
+        let mut cursor = 0;
+        let mut parts = Vec::new();
+
+        for field in &self.fields {
+            match self.decode_field(field, data, &mut cursor) {
+                Ok(value) => parts.push(format!("{}: {}", field.id, value)),
+                Err(needed) => {
+                    parts.push(format!("<truncated: expected {} more bytes>", needed));
+                    break;
+                }
+            }
+        }
+
+        // Check for extra bytes
+        if cursor < data.len() {
+            let extra = &data[cursor..];
+            let hex = crate::parser::hex_encode(extra);
+            parts.push(format!("<extra: 0x{}>", hex));
+        }
+
+        parts.join(", ")
+    }
+
+    fn decode_field(
+        &self,
+        field: &FieldDef,
+        data: &[u8],
+        cursor: &mut usize,
+    ) -> std::result::Result<String, usize> {
+        let remaining = &data[*cursor..];
+
+        let (value, consumed) = match &field.field_type {
+            FieldType::U1 => {
+                if remaining.is_empty() {
+                    return Err(1);
+                }
+                (remaining[0] as i64, 1)
+            }
+            FieldType::U2 => {
+                if remaining.len() < 2 {
+                    return Err(2 - remaining.len());
+                }
+                let arr: [u8; 2] = remaining[..2].try_into().unwrap();
+                (u16::from_be_bytes(arr) as i64, 2)
+            }
+            FieldType::U4 => {
+                if remaining.len() < 4 {
+                    return Err(4 - remaining.len());
+                }
+                let arr: [u8; 4] = remaining[..4].try_into().unwrap();
+                (u32::from_be_bytes(arr) as i64, 4)
+            }
+            FieldType::U8 => {
+                if remaining.len() < 8 {
+                    return Err(8 - remaining.len());
+                }
+                let arr: [u8; 8] = remaining[..8].try_into().unwrap();
+                (u64::from_be_bytes(arr) as i64, 8)
+            }
+            FieldType::U1Le => {
+                if remaining.is_empty() {
+                    return Err(1);
+                }
+                (remaining[0] as i64, 1)
+            }
+            FieldType::U2Le => {
+                if remaining.len() < 2 {
+                    return Err(2 - remaining.len());
+                }
+                let arr: [u8; 2] = remaining[..2].try_into().unwrap();
+                (u16::from_le_bytes(arr) as i64, 2)
+            }
+            FieldType::U4Le => {
+                if remaining.len() < 4 {
+                    return Err(4 - remaining.len());
+                }
+                let arr: [u8; 4] = remaining[..4].try_into().unwrap();
+                (u32::from_le_bytes(arr) as i64, 4)
+            }
+            FieldType::U8Le => {
+                if remaining.len() < 8 {
+                    return Err(8 - remaining.len());
+                }
+                let arr: [u8; 8] = remaining[..8].try_into().unwrap();
+                // Note: casting u64 to i64 may lose precision for very large values
+                (u64::from_le_bytes(arr) as i64, 8)
+            }
+            FieldType::S1 => {
+                if remaining.is_empty() {
+                    return Err(1);
+                }
+                (remaining[0] as i8 as i64, 1)
+            }
+            FieldType::S2 => {
+                if remaining.len() < 2 {
+                    return Err(2 - remaining.len());
+                }
+                let arr: [u8; 2] = remaining[..2].try_into().unwrap();
+                (i16::from_be_bytes(arr) as i64, 2)
+            }
+            FieldType::S4 => {
+                if remaining.len() < 4 {
+                    return Err(4 - remaining.len());
+                }
+                let arr: [u8; 4] = remaining[..4].try_into().unwrap();
+                (i32::from_be_bytes(arr) as i64, 4)
+            }
+            FieldType::S8 => {
+                if remaining.len() < 8 {
+                    return Err(8 - remaining.len());
+                }
+                let arr: [u8; 8] = remaining[..8].try_into().unwrap();
+                (i64::from_be_bytes(arr), 8)
+            }
+            FieldType::S1Le => {
+                if remaining.is_empty() {
+                    return Err(1);
+                }
+                (remaining[0] as i8 as i64, 1)
+            }
+            FieldType::S2Le => {
+                if remaining.len() < 2 {
+                    return Err(2 - remaining.len());
+                }
+                let arr: [u8; 2] = remaining[..2].try_into().unwrap();
+                (i16::from_le_bytes(arr) as i64, 2)
+            }
+            FieldType::S4Le => {
+                if remaining.len() < 4 {
+                    return Err(4 - remaining.len());
+                }
+                let arr: [u8; 4] = remaining[..4].try_into().unwrap();
+                (i32::from_le_bytes(arr) as i64, 4)
+            }
+            FieldType::S8Le => {
+                if remaining.len() < 8 {
+                    return Err(8 - remaining.len());
+                }
+                let arr: [u8; 8] = remaining[..8].try_into().unwrap();
+                (i64::from_le_bytes(arr), 8)
+            }
+            FieldType::Bytes { size } => {
+                if remaining.len() < *size {
+                    return Err(*size - remaining.len());
+                }
+                let bytes = &remaining[..*size];
+                let hex = crate::parser::hex_encode(bytes);
+                *cursor += *size;
+                return Ok(format!("0x{}", hex));
+            }
+            FieldType::Str { size } => {
+                if remaining.len() < *size {
+                    return Err(*size - remaining.len());
+                }
+                let bytes = &remaining[..*size];
+                let s = String::from_utf8_lossy(bytes);
+                *cursor += *size;
+                return Ok(format!("\"{}\"", s));
+            }
+            FieldType::Strz => {
+                if let Some(pos) = remaining.iter().position(|&b| b == 0) {
+                    let s = String::from_utf8_lossy(&remaining[..pos]);
+                    *cursor += pos + 1; // include null terminator
+                    return Ok(format!("\"{}\"", s));
+                } else {
+                    // No null terminator found, use remaining as string
+                    let s = String::from_utf8_lossy(remaining);
+                    *cursor += remaining.len();
+                    return Ok(format!("\"{}\"", s));
+                }
+            }
+            FieldType::Vlq => {
+                let mut value: u64 = 0;
+                let mut consumed = 0;
+                for &byte in remaining {
+                    consumed += 1;
+                    value = (value << 7) | ((byte & 0x7f) as u64);
+                    if byte & 0x80 == 0 {
+                        break;
+                    }
+                }
+                if consumed == 0 {
+                    return Err(1);
+                }
+                *cursor += consumed;
+                return Ok(value.to_string());
+            }
+        };
+
+        *cursor += consumed;
+
+        // Handle enum display
+        if let Some(enum_name) = &field.enum_name {
+            if let Some(enum_def) = self.enums.get(enum_name) {
+                if let Some(variant) = enum_def.values.get(&value) {
+                    return Ok(format!("{}::{}", enum_name, variant));
+                } else {
+                    return Ok(format!("unknown({})", value));
+                }
+            }
+        }
+
+        Ok(value.to_string())
+    }
 }
 
 fn parse_field_type(field: &RawField) -> Result<FieldType> {
@@ -202,5 +408,129 @@ seq:
         let result = KeySchema::parse(yaml);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("requires 'size'"));
+    }
+
+    #[test]
+    fn test_decode_u8le() {
+        let yaml = r#"
+seq:
+  - id: num
+    type: u8le
+"#;
+        let schema = KeySchema::parse(yaml).unwrap();
+        let data = 12345u64.to_le_bytes();
+        let result = schema.decode(&data);
+        assert_eq!(result, "num: 12345");
+    }
+
+    #[test]
+    fn test_decode_composite() {
+        let yaml = r#"
+seq:
+  - id: block_num
+    type: u8le
+  - id: tx_hash
+    type: bytes
+    size: 4
+"#;
+        let schema = KeySchema::parse(yaml).unwrap();
+        let mut data = vec![];
+        data.extend_from_slice(&1u64.to_le_bytes());
+        data.extend_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
+        let result = schema.decode(&data);
+        assert_eq!(result, "block_num: 1, tx_hash: 0xdeadbeef");
+    }
+
+    #[test]
+    fn test_decode_truncated() {
+        let yaml = r#"
+seq:
+  - id: num
+    type: u8le
+  - id: hash
+    type: bytes
+    size: 32
+"#;
+        let schema = KeySchema::parse(yaml).unwrap();
+        let data = 123u64.to_le_bytes(); // only 8 bytes, missing 32 for hash
+        let result = schema.decode(&data);
+        assert!(result.contains("num: 123"));
+        assert!(result.contains("<truncated:"));
+    }
+
+    #[test]
+    fn test_decode_extra_bytes() {
+        let yaml = r#"
+seq:
+  - id: num
+    type: u4le
+"#;
+        let schema = KeySchema::parse(yaml).unwrap();
+        let data = [0x01, 0x00, 0x00, 0x00, 0xde, 0xad]; // 4 + 2 extra
+        let result = schema.decode(&data);
+        assert!(result.contains("num: 1"));
+        assert!(result.contains("<extra:"));
+    }
+
+    #[test]
+    fn test_decode_with_enum() {
+        let yaml = r#"
+seq:
+  - id: key_type
+    type: u1
+    enum: key_types
+enums:
+  key_types:
+    0: header
+    1: body
+"#;
+        let schema = KeySchema::parse(yaml).unwrap();
+        let data = [0x01];
+        let result = schema.decode(&data);
+        assert_eq!(result, "key_type: key_types::body");
+    }
+
+    #[test]
+    fn test_decode_unknown_enum() {
+        let yaml = r#"
+seq:
+  - id: key_type
+    type: u1
+    enum: key_types
+enums:
+  key_types:
+    0: header
+"#;
+        let schema = KeySchema::parse(yaml).unwrap();
+        let data = [0x99];
+        let result = schema.decode(&data);
+        assert_eq!(result, "key_type: unknown(153)");
+    }
+
+    #[test]
+    fn test_decode_strz() {
+        let yaml = r#"
+seq:
+  - id: name
+    type: strz
+"#;
+        let schema = KeySchema::parse(yaml).unwrap();
+        let data = b"hello\0";
+        let result = schema.decode(data);
+        assert_eq!(result, "name: \"hello\"");
+    }
+
+    #[test]
+    fn test_decode_vlq() {
+        let yaml = r#"
+seq:
+  - id: length
+    type: vlq
+"#;
+        let schema = KeySchema::parse(yaml).unwrap();
+        // VLQ encoding of 300: 0x82 0x2c (10000010 00101100)
+        let data = [0x82, 0x2c];
+        let result = schema.decode(&data);
+        assert_eq!(result, "length: 300");
     }
 }
