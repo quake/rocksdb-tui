@@ -85,11 +85,7 @@ fn draw_key_list(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         Style::default().fg(Color::DarkGray)
     };
-    let search_text = if app.search_active {
-        app.search_input.clone()
-    } else if let Some(ref prefix) = app.search_prefix {
-        format!("Filter: {}", String::from_utf8_lossy(prefix))
-    } else if app.search_input.is_empty() {
+    let search_text = if app.search_input.is_empty() && !app.search_active {
         "Press / to search...".to_string()
     } else {
         app.search_input.clone()
