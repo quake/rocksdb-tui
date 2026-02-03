@@ -161,8 +161,18 @@ fn draw_value_view(frame: &mut Frame, app: &mut App, area: Rect) {
             Style::default().fg(Color::DarkGray),
         ))]
     } else {
-        let (content, success) = app.current_value().unwrap_or_default();
         let mut lines = Vec::new();
+
+        // Show formatted key if different from hex
+        if let Some(formatted_key) = app.formatted_current_key() {
+            lines.push(Line::from(Span::styled(
+                format!("Key: {}", formatted_key),
+                Style::default().fg(Color::Cyan),
+            )));
+            lines.push(Line::from(""));
+        }
+
+        let (content, success) = app.current_value().unwrap_or_default();
         if !success {
             lines.push(Line::from(Span::styled(
                 "⚠ Parse failed, showing hex",

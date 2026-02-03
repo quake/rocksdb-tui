@@ -1,8 +1,7 @@
 use crate::config::{ColumnFamilyConfig, Config, ValueFormat};
 use crate::db::SecondaryDb;
 use crate::parser::{
-    parse_key_hex, parse_key_with_schema, parse_value, KeySchemaRegistry, MoleculeRegistry,
-    ProtoRegistry,
+    parse_key_hex, parse_value, KeySchemaRegistry, MoleculeRegistry, ProtoRegistry,
 };
 use anyhow::Result;
 
@@ -128,35 +127,46 @@ impl App {
     }
 
     pub fn formatted_keys(&mut self) -> Vec<String> {
+        // Always show keys as hex in the list for consistency
+        self.keys.iter().map(|(k, _)| parse_key_hex(k)).collect()
+    }
+
+    pub fn formatted_current_key(&mut self) -> Option<String> {
+        let (k, _) = self.keys.get(self.key_index)?;
+        let key_data = k.clone();
+
         let cf_config = self.current_cf_config().cloned();
-        let keys: Vec<_> = self.keys.iter().map(|(k, _)| k.clone()).collect();
 
-        keys.iter()
-            .map(|k| {
-                if let Some(ref config) = cf_config {
-                    // Check for hex preset first
-                    if KeySchemaRegistry::is_hex_preset(config.key_schema.as_deref()) {
-                        return parse_key_hex(k);
-                    }
+        let formatted = if let Some(ref config) = cf_config {
+            // Check for hex preset first
+            if KeySchemaRegistry::is_hex_preset(config.key_schema.as_deref()) {
+                return None; // hex is already shown in the list, no need to show again
+            }
 
-                    // Try to get/compile schema
-                    match self.key_schema_registry.get_schema(
-                        &config.name,
-                        config.key_schema.as_deref(),
-                        config.key_schema_file.as_deref(),
-                    ) {
-                        Ok(schema) => parse_key_with_schema(k, schema),
-                        Err(e) => {
-                            // Schema error, fall back to hex
-                            format!("[schema error: {}] {}", e, parse_key_hex(k))
-                        }
+            // Try to get/compile schema
+            match self.key_schema_registry.get_schema(
+                &config.name,
+                config.key_schema.as_deref(),
+                config.key_schema_file.as_deref(),
+            ) {
+                Ok(Some(schema)) => {
+                    let decoded = schema.decode(&key_data);
+                    // If decoded is same as hex, don't show
+                    let hex = parse_key_hex(&key_data);
+                    if decoded == hex {
+                        None
+                    } else {
+                        Some(decoded)
                     }
-                } else {
-                    // No config, use hex
-                    parse_key_hex(k)
                 }
-            })
-            .collect()
+                Ok(None) => None,
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+
+        formatted
     }
 
     pub fn current_value(&mut self) -> Option<(String, bool)> {
