@@ -1,6 +1,6 @@
-use crate::config::{Config, KeyFormat, ValueFormat};
+use crate::config::{ColumnFamilyConfig, Config, KeyFormat, ValueFormat};
 use crate::db::SecondaryDb;
-use crate::parser::{parse_key, parse_value};
+use crate::parser::{parse_key, parse_value, ProtoRegistry};
 use anyhow::Result;
 
 const PAGE_SIZE: usize = 100;
@@ -24,6 +24,7 @@ pub struct App {
     pub search_active: bool,
     pub search_prefix: Option<Vec<u8>>,
     pub should_quit: bool,
+    pub proto_registry: ProtoRegistry,
 }
 
 impl App {
@@ -40,6 +41,7 @@ impl App {
             search_active: false,
             search_prefix: None,
             should_quit: false,
+            proto_registry: ProtoRegistry::new(),
         };
         app.load_keys()?;
         Ok(app)
@@ -52,16 +54,19 @@ impl App {
             .map(|s| s.as_str())
     }
 
-    pub fn key_format(&self) -> KeyFormat {
+    pub fn current_cf_config(&self) -> Option<&ColumnFamilyConfig> {
         self.current_cf()
             .and_then(|cf| self.config.get_cf_config(cf))
+    }
+
+    pub fn key_format(&self) -> KeyFormat {
+        self.current_cf_config()
             .map(|c| c.key_format.clone())
             .unwrap_or_default()
     }
 
     pub fn value_format(&self) -> ValueFormat {
-        self.current_cf()
-            .and_then(|cf| self.config.get_cf_config(cf))
+        self.current_cf_config()
             .map(|c| c.value_format.clone())
             .unwrap_or_default()
     }
@@ -127,11 +132,46 @@ impl App {
             .collect()
     }
 
-    pub fn current_value(&self) -> Option<(String, bool)> {
-        self.keys.get(self.key_index).map(|(_, v)| {
-            let result = parse_value(v, &self.value_format());
-            (result.content, result.success)
-        })
+    pub fn current_value(&mut self) -> Option<(String, bool)> {
+        let (_, v) = self.keys.get(self.key_index)?;
+        let value_data = v.clone();
+        let format = self.value_format();
+
+        // Handle protobuf specially - needs registry and config
+        if matches!(format, ValueFormat::Protobuf) {
+            if let Some(cf_config) = self.current_cf_config() {
+                if let (Some(proto_file), Some(proto_message)) =
+                    (&cf_config.proto_file, &cf_config.proto_message)
+                {
+                    let proto_file = proto_file.clone();
+                    let proto_message = proto_message.clone();
+                    let proto_includes = cf_config.proto_includes.clone();
+
+                    match self.proto_registry.get_message_descriptor(
+                        &proto_file,
+                        &proto_message,
+                        &proto_includes,
+                    ) {
+                        Ok(descriptor) => {
+                            match crate::parser::protobuf::decode_to_json(&value_data, &descriptor)
+                            {
+                                Ok(json) => return Some((json, true)),
+                                Err(e) => return Some((format!("Decode error: {}", e), false)),
+                            }
+                        }
+                        Err(e) => return Some((format!("Proto error: {}", e), false)),
+                    }
+                } else {
+                    return Some((
+                        "Missing proto_file or proto_message in config".to_string(),
+                        false,
+                    ));
+                }
+            }
+        }
+
+        let result = parse_value(&value_data, &format);
+        Some((result.content, result.success))
     }
 
     pub fn next_cf(&mut self) -> Result<()> {

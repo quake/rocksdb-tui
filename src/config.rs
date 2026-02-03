@@ -17,6 +17,8 @@ pub struct ColumnFamilyConfig {
     pub value_format: ValueFormat,
     pub proto_file: Option<String>,
     pub proto_message: Option<String>,
+    #[serde(default)]
+    pub proto_includes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

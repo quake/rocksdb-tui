@@ -12,3 +12,10 @@ value_format = "string"
 name = "cache"
 key_format = "string"
 value_format = "msgpack"
+
+[[column_families]]
+name = "orders"
+key_format = "string"
+value_format = "protobuf"
+proto_file = "examples/protos/order.proto"
+proto_message = "Order"

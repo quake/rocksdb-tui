@@ -7,7 +7,7 @@ use ratatui::{
     Frame,
 };
 
-pub fn draw(frame: &mut Frame, app: &App) {
+pub fn draw(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(1)])
@@ -142,7 +142,7 @@ fn draw_key_list(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn draw_value_view(frame: &mut Frame, app: &App, area: Rect) {
+fn draw_value_view(frame: &mut Frame, app: &mut App, area: Rect) {
     let focused = app.focus == Focus::Value;
     let border_style = if focused {
         Style::default().fg(Color::Cyan)

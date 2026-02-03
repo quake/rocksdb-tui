@@ -13,6 +13,12 @@ serde_json = "1"
 toml = "0.8"
 anyhow = "1"
 rmp-serde = "1"
+protox = "0.7"
+prost = "0.13"
+prost-reflect = { version = "0.14", features = ["serde"] }
 
 [[example]]
 name = "create_test_db"
+
+[dev-dependencies]
+protox = "0.7"
