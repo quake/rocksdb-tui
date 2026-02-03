@@ -1,28 +1,45 @@
 [[column_families]]
+name = "default"
+key_schema = "string"
+value_format = "string"
+
+[[column_families]]
 name = "users"
-key_format = "string"
+key_schema = "string"
 value_format = "json"
 
 [[column_families]]
 name = "logs"
-key_format = "string"
+key_schema = "string"
 value_format = "string"
 
 [[column_families]]
 name = "cache"
-key_format = "string"
+key_schema = "string"
 value_format = "msgpack"
 
 [[column_families]]
 name = "orders"
-key_format = "string"
+key_schema = "string"
 value_format = "protobuf"
 proto_file = "examples/protos/order.proto"
 proto_message = "Order"
 
 [[column_families]]
 name = "accounts"
-key_format = "string"
+key_schema = "string"
 value_format = "molecule"
 mol_file = "examples/molecules/types.mol"
 mol_type = "Account"
+
+# Demonstrates composite binary key format
+[[column_families]]
+name = "blocks"
+key_schema = """
+seq:
+  - id: block_num
+    type: u8le
+  - id: tx_index
+    type: u4le
+"""
+value_format = "json"

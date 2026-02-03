@@ -15,7 +15,9 @@ fn main() {
     opts.create_if_missing(true);
     opts.create_missing_column_families(true);
 
-    let cfs = vec!["default", "users", "logs", "cache", "orders", "accounts"];
+    let cfs = vec![
+        "default", "users", "logs", "cache", "orders", "accounts", "blocks",
+    ];
     let db = DB::open_cf(&opts, path, &cfs).unwrap();
 
     // Add some test data to default CF
@@ -160,6 +162,47 @@ fn main() {
     let account3 = build_molecule_account(3, 0, 0, [0x00; 32]);
     db.put_cf(&accounts_cf, b"account:0x3333", &account3)
         .unwrap();
+
+    // Add block transaction data with composite binary keys (block_num: u64 + tx_index: u32)
+    let blocks_cf = db.cf_handle("blocks").unwrap();
+    let block_txs = vec![
+        (
+            1000u64,
+            0u32,
+            r#"{"hash":"0xabc...","from":"Alice","to":"Bob","value":100}"#,
+        ),
+        (
+            1000u64,
+            1u32,
+            r#"{"hash":"0xdef...","from":"Bob","to":"Charlie","value":50}"#,
+        ),
+        (
+            1000u64,
+            2u32,
+            r#"{"hash":"0x123...","from":"Charlie","to":"Alice","value":25}"#,
+        ),
+        (
+            1001u64,
+            0u32,
+            r#"{"hash":"0x456...","from":"Alice","to":"Dave","value":200}"#,
+        ),
+        (
+            1001u64,
+            1u32,
+            r#"{"hash":"0x789...","from":"Dave","to":"Eve","value":75}"#,
+        ),
+        (
+            1002u64,
+            0u32,
+            r#"{"hash":"0xfff...","from":"Eve","to":"Alice","value":300}"#,
+        ),
+    ];
+    for (block_num, tx_index, tx_json) in block_txs {
+        let mut key = Vec::with_capacity(12);
+        key.extend_from_slice(&block_num.to_le_bytes()); // u8le = u64 little-endian
+        key.extend_from_slice(&tx_index.to_le_bytes()); // u4le = u32 little-endian
+        db.put_cf(&blocks_cf, &key, tx_json.as_bytes()).unwrap();
+    }
 
     println!("Test database created at {:?}", path);
     println!("Column families: {:?}", cfs);
