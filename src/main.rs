@@ -8,6 +8,7 @@ use crossterm::{
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 mod app;
 mod config;
@@ -70,26 +71,53 @@ fn main() -> Result<()> {
 }
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
+    const DEBOUNCE_MS: u64 = 200;
+    let mut pending_search: Option<Instant> = None;
+
     loop {
         terminal.draw(|f| ui::draw(f, app))?;
+
+        // Check if we have a pending search that's ready to execute
+        if let Some(last_input) = pending_search {
+            if last_input.elapsed() >= Duration::from_millis(DEBOUNCE_MS) {
+                app.execute_search()?;
+                pending_search = None;
+            }
+        }
+
+        // Poll for events with timeout
+        let timeout = if pending_search.is_some() {
+            Duration::from_millis(50)
+        } else {
+            Duration::from_millis(100)
+        };
+
+        if !event::poll(timeout)? {
+            continue;
+        }
 
         if let Event::Key(key) = event::read()? {
             if app.search_active {
                 match key.code {
                     KeyCode::Esc => {
+                        pending_search = None;
                         app.clear_search()?;
                     }
                     KeyCode::Enter => {
-                        // Exit search mode but keep filter active
+                        // Execute immediately and exit search mode
+                        if pending_search.is_some() {
+                            app.execute_search()?;
+                            pending_search = None;
+                        }
                         app.search_active = false;
                     }
                     KeyCode::Backspace => {
                         app.search_input.pop();
-                        app.execute_search()?;
+                        pending_search = Some(Instant::now());
                     }
                     KeyCode::Char(c) => {
                         app.search_input.push(c);
-                        app.execute_search()?;
+                        pending_search = Some(Instant::now());
                     }
                     _ => {}
                 }
