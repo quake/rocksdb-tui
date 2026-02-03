@@ -3,6 +3,9 @@ name = "rocksdb-tui"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+members = [".", "crates/rocksdb-tui-plugin-sdk"]
+
 [dependencies]
 rocksdb = "0.22"
 ratatui = "0.28"
