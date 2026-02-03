@@ -1,1 +1,0 @@
-/Users/quake/workspace/rocksdb-tui/examples/plugin-demo/demo-parser/target/wasm32-unknown-unknown/release/demo_parser.wasm: /Users/quake/workspace/rocksdb-tui/examples/plugin-demo/demo-parser/src/lib.rs /Users/quake/workspace/rocksdb-tui/examples/plugin-demo/demo-types/src/lib.rs /Users/quake/workspace/rocksdb-tui/plugin-sdk/src/lib.rs

@@ -1,1 +1,0 @@
-/Users/quake/workspace/rocksdb-tui/examples/fiber/fiber-parser/target/wasm32-unknown-unknown/release/fiber_parser.wasm: /Users/quake/workspace/rocksdb-tui/examples/fiber/fiber-parser/src/lib.rs /Users/quake/workspace/rocksdb-tui/examples/fiber/fiber-types/src/lib.rs /Users/quake/workspace/rocksdb-tui/plugin-sdk/src/lib.rs
