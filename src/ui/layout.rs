@@ -75,15 +75,18 @@ fn draw_key_list(frame: &mut Frame, app: &mut App, area: Rect) {
     let formatted_key = app.formatted_current_key();
     let has_tooltip = formatted_key.is_some();
 
-    // Split area for search box, key list, and optional tooltip
+    // Split area for search box, optional tooltip, and key list
     let constraints = if has_tooltip {
         vec![
-            Constraint::Length(3),
-            Constraint::Min(0),
-            Constraint::Length(3),
+            Constraint::Length(3), // Search
+            Constraint::Length(3), // Decoded Key tooltip
+            Constraint::Min(0),    // Keys
         ]
     } else {
-        vec![Constraint::Length(3), Constraint::Min(0)]
+        vec![
+            Constraint::Length(3), // Search
+            Constraint::Min(0),    // Keys
+        ]
     };
 
     let chunks = Layout::default()
@@ -108,6 +111,26 @@ fn draw_key_list(frame: &mut Frame, app: &mut App, area: Rect) {
         .style(search_style)
         .block(Block::default().title("Search").borders(Borders::ALL));
     frame.render_widget(search, chunks[0]);
+
+    // Tooltip and key list areas depend on whether tooltip exists
+    let (tooltip_area, keys_area) = if has_tooltip {
+        (Some(chunks[1]), chunks[2])
+    } else {
+        (None, chunks[1])
+    };
+
+    // Draw tooltip for formatted key (above key list)
+    if let Some(formatted) = formatted_key {
+        let tooltip = Paragraph::new(formatted)
+            .style(Style::default().fg(Color::Cyan))
+            .block(
+                Block::default()
+                    .title("Decoded Key")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Cyan)),
+            );
+        frame.render_widget(tooltip, tooltip_area.unwrap());
+    }
 
     // Key list
     let keys = app.formatted_keys();
@@ -141,31 +164,18 @@ fn draw_key_list(frame: &mut Frame, app: &mut App, area: Rect) {
         state.select(Some(app.key_index));
     }
 
-    frame.render_stateful_widget(list, chunks[1], &mut state);
+    frame.render_stateful_widget(list, keys_area, &mut state);
 
     // Show empty message if needed
     if let Some(msg) = show_empty_message {
         let inner = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(1), Constraint::Min(0)])
-            .split(chunks[1]);
+            .split(keys_area);
         let empty_msg = Paragraph::new(msg)
             .style(Style::default().fg(Color::DarkGray))
             .alignment(ratatui::layout::Alignment::Center);
         frame.render_widget(empty_msg, inner[1]);
-    }
-
-    // Draw tooltip for formatted key
-    if let Some(formatted) = formatted_key {
-        let tooltip = Paragraph::new(formatted)
-            .style(Style::default().fg(Color::Cyan))
-            .block(
-                Block::default()
-                    .title("Decoded Key")
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Cyan)),
-            );
-        frame.render_widget(tooltip, chunks[2]);
     }
 }
 
