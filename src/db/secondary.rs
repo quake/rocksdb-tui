@@ -120,4 +120,32 @@ impl SecondaryDb {
 
         Ok(results)
     }
+
+    pub fn iter_keys_with_prefix(
+        &self,
+        cf_name: &str,
+        prefix: &[u8],
+        limit: usize,
+    ) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
+        let cf = self
+            .db
+            .cf_handle(cf_name)
+            .with_context(|| format!("Column family not found: {}", cf_name))?;
+
+        let iter = self.db.iterator_cf(
+            &cf,
+            rocksdb::IteratorMode::From(prefix, rocksdb::Direction::Forward),
+        );
+
+        let mut results = Vec::with_capacity(limit);
+        for item in iter.take(limit) {
+            let (k, v) = item?;
+            if !k.starts_with(prefix) {
+                break;
+            }
+            results.push((k.to_vec(), v.to_vec()));
+        }
+
+        Ok(results)
+    }
 }
