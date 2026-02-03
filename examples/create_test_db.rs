@@ -16,7 +16,7 @@ fn main() {
     opts.create_missing_column_families(true);
 
     let cfs = vec![
-        "default", "users", "logs", "cache", "orders", "accounts", "blocks", "metrics",
+        "default", "users", "logs", "cache", "orders", "accounts", "blocks", "metrics", "demo",
     ];
     let db = DB::open_cf(&opts, path, &cfs).unwrap();
 
@@ -220,8 +220,84 @@ fn main() {
         db.put_cf(&metrics_cf, key.as_bytes(), &data).unwrap();
     }
 
+    // Add demo data for WASM plugin demonstration
+    // Uses key-prefix routing: 0x00=Product, 0x01=Customer, 0x02=Transaction
+    let demo_cf = db.cf_handle("demo").unwrap();
+
+    // Products (prefix 0x00)
+    // Format: id (4 bytes u32 LE) | name_len (1 byte) | name | price (8 bytes f64 LE) | in_stock (1 byte)
+    let products = vec![
+        (1u32, "Widget", 9.99f64, true),
+        (2u32, "Gadget", 24.99f64, true),
+        (3u32, "Thingamajig", 4.99f64, false),
+        (4u32, "Doohickey", 14.99f64, true),
+    ];
+    for (id, name, price, in_stock) in products {
+        let mut key = vec![0x00]; // Product prefix
+        key.extend_from_slice(&id.to_le_bytes());
+
+        let mut value = Vec::new();
+        value.extend_from_slice(&id.to_le_bytes());
+        value.push(name.len() as u8);
+        value.extend_from_slice(name.as_bytes());
+        value.extend_from_slice(&price.to_le_bytes());
+        value.push(if in_stock { 1 } else { 0 });
+
+        db.put_cf(&demo_cf, &key, &value).unwrap();
+    }
+
+    // Customers (prefix 0x01)
+    // Format: id (4 bytes u32 LE) | name_len (1 byte) | name | email_len (1 byte) | email | tier (1 byte)
+    let customers = vec![
+        (101u32, "Alice", "alice@example.com", 2u8),     // Gold
+        (102u32, "Bob", "bob@example.com", 1u8),         // Silver
+        (103u32, "Charlie", "charlie@example.com", 3u8), // Platinum
+        (104u32, "Diana", "diana@example.com", 0u8),     // Bronze
+    ];
+    for (id, name, email, tier) in customers {
+        let mut key = vec![0x01]; // Customer prefix
+        key.extend_from_slice(&id.to_le_bytes());
+
+        let mut value = Vec::new();
+        value.extend_from_slice(&id.to_le_bytes());
+        value.push(name.len() as u8);
+        value.extend_from_slice(name.as_bytes());
+        value.push(email.len() as u8);
+        value.extend_from_slice(email.as_bytes());
+        value.push(tier);
+
+        db.put_cf(&demo_cf, &key, &value).unwrap();
+    }
+
+    // Transactions (prefix 0x02)
+    // Format: id (4 bytes u32 LE) | customer_id (4 bytes) | product_id (4 bytes) | quantity (2 bytes u16 LE) | timestamp (8 bytes u64 LE)
+    let transactions = vec![
+        (1001u32, 101u32, 1u32, 2u16, 1704067200u64), // Alice bought 2 Widgets
+        (1002u32, 102u32, 2u32, 1u16, 1704153600u64), // Bob bought 1 Gadget
+        (1003u32, 101u32, 4u32, 3u16, 1704240000u64), // Alice bought 3 Doohickeys
+        (1004u32, 103u32, 1u32, 5u16, 1704326400u64), // Charlie bought 5 Widgets
+        (1005u32, 104u32, 3u32, 1u16, 1704412800u64), // Diana bought 1 Thingamajig
+    ];
+    for (id, customer_id, product_id, quantity, timestamp) in transactions {
+        let mut key = vec![0x02]; // Transaction prefix
+        key.extend_from_slice(&id.to_le_bytes());
+
+        let mut value = Vec::new();
+        value.extend_from_slice(&id.to_le_bytes());
+        value.extend_from_slice(&customer_id.to_le_bytes());
+        value.extend_from_slice(&product_id.to_le_bytes());
+        value.extend_from_slice(&quantity.to_le_bytes());
+        value.extend_from_slice(&timestamp.to_le_bytes());
+
+        db.put_cf(&demo_cf, &key, &value).unwrap();
+    }
+
     println!("Test database created at {:?}", path);
     println!("Column families: {:?}", cfs);
+    println!("\nTo use with WASM plugin, first build the demo-parser:");
+    println!("  cd crates/demo-parser && cargo build --release --target wasm32-unknown-unknown");
+    println!("  mkdir -p ~/.config/rocksdb-tui/plugins");
+    println!("  cp target/wasm32-unknown-unknown/release/demo_parser.wasm ~/.config/rocksdb-tui/plugins/");
 }
 
 /// Build a molecule-encoded Account table

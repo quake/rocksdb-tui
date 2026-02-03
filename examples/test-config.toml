@@ -59,3 +59,16 @@ seq:
   - id: flags
     type: u4le
 """
+
+# WASM Plugin Configuration
+# Build the plugin: cd crates/demo-parser && cargo build --release --target wasm32-unknown-unknown
+# Install: cp target/wasm32-unknown-unknown/release/demo_parser.wasm ~/.config/rocksdb-tui/plugins/
+[plugins]
+wasm = ["~/.config/rocksdb-tui/plugins/demo_parser.wasm"]
+
+# Demonstrates WASM plugin with key-based routing
+# Key prefix determines value type: 0x00=Product, 0x01=Customer, 0x02=Transaction
+[[column_families]]
+name = "demo"
+key_schema = "hex"
+value_format = "demo"
