@@ -20,6 +20,7 @@ A TUI browser for RocksDB databases using Secondary mode (read-only, safe).
   - **MessagePack** - Binary msgpack to JSON
   - **Protobuf** - Dynamic protobuf decoding (no protoc required)
   - **Molecule** - CKB Molecule format decoding
+  - **WASM Plugins** - Custom formats via WebAssembly plugins
 
 ## Quick Start
 
@@ -192,6 +193,75 @@ The `value_schema` field supports:
 - External files via `value_schema_file`
 
 **Note:** `value_schema` takes precedence over `value_format`. Use `value_format` for standard formats (JSON, Protobuf, etc.) and `value_schema` for custom binary structures.
+
+### WASM Plugins
+
+For custom binary formats not covered by built-in parsers, rocksdb-tui supports WASM plugins. Plugins can decode application-specific formats (like bincode-serialized Rust structs) into readable JSON.
+
+#### Configuration
+
+```toml
+[plugins]
+wasm = [
+    "~/.config/rocksdb-tui/plugins/fiber-parser.wasm",
+    "/absolute/path/to/another-plugin.wasm"
+]
+
+[[column_families]]
+name = "channels"
+key_schema = "hex"
+value_format = "fiber.ChannelActorState"  # Custom format handled by plugin
+```
+
+The `value_format` can be any string. If it doesn't match a built-in format (string, hex, json, msgpack, protobuf, molecule), rocksdb-tui looks for a plugin that handles that format.
+
+#### Plugin ABI
+
+Plugins are WebAssembly modules that export these functions:
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `memory` | Memory | Linear memory for data exchange |
+| `alloc` | `(size: u32) -> u32` | Allocate bytes, return pointer |
+| `dealloc` | `(ptr: u32, len: u32)` | Free allocated bytes |
+| `get_formats` | `() -> u64` | Return packed ptr+len to JSON array of format names |
+| `parse` | `(fmt_ptr, fmt_len, data_ptr, data_len) -> u64` | Parse data, return packed ptr+len to JSON result |
+
+The packed return value encodes `(ptr << 32) | len`.
+
+#### Writing a Plugin
+
+Use the `rocksdb-tui-plugin-sdk` crate (see `crates/rocksdb-tui-plugin-sdk/`):
+
+```rust
+use rocksdb_tui_plugin_sdk::*;
+
+define_plugin_exports! {
+    formats: ["myapp.UserProfile", "myapp.Transaction"],
+    parse: |format, data| {
+        match format {
+            "myapp.UserProfile" => {
+                let profile: UserProfile = bincode::deserialize(data)?;
+                Ok(serde_json::to_string_pretty(&profile)?)
+            }
+            "myapp.Transaction" => {
+                let tx: Transaction = bincode::deserialize(data)?;
+                Ok(serde_json::to_string_pretty(&tx)?)
+            }
+            _ => Err(anyhow::anyhow!("Unknown format"))
+        }
+    }
+}
+```
+
+Build with:
+```bash
+cargo build --target wasm32-unknown-unknown --release
+```
+
+#### Example: Fiber Network
+
+See `examples/fiber/` for a complete example using a WASM plugin to decode Fiber Network's bincode-serialized channel state.
 
 ## Keyboard Shortcuts
 
