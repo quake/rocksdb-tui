@@ -69,8 +69,12 @@ impl App {
     pub fn load_keys(&mut self) -> Result<()> {
         if let Some(cf) = self.current_cf() {
             let cf = cf.to_string();
-            self.keys = self.db.iter_keys(&cf, None, PAGE_SIZE)?;
-            self.has_more_keys = self.keys.len() == PAGE_SIZE;
+            self.keys = if let Some(ref prefix) = self.search_prefix {
+                self.db.iter_keys_with_prefix(&cf, prefix, PAGE_SIZE)?
+            } else {
+                self.db.iter_keys(&cf, None, PAGE_SIZE)?
+            };
+            self.has_more_keys = self.keys.len() == PAGE_SIZE && self.search_prefix.is_none();
             self.key_index = 0;
         }
         Ok(())
@@ -88,6 +92,25 @@ impl App {
                 self.keys.extend(more);
             }
         }
+        Ok(())
+    }
+
+    pub fn execute_search(&mut self) -> Result<()> {
+        if self.search_input.is_empty() {
+            self.clear_search()?;
+        } else {
+            self.search_prefix = Some(self.search_input.as_bytes().to_vec());
+            self.search_active = false;
+            self.load_keys()?;
+        }
+        Ok(())
+    }
+
+    pub fn clear_search(&mut self) -> Result<()> {
+        self.search_prefix = None;
+        self.search_input.clear();
+        self.search_active = false;
+        self.load_keys()?;
         Ok(())
     }
 
