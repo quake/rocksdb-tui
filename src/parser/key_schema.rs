@@ -261,18 +261,18 @@ impl KeySchema {
                 let bytes = &remaining[..*size];
                 let s = String::from_utf8_lossy(bytes);
                 *cursor += *size;
-                return Ok(format!("\"{}\"", s));
+                return Ok(s.into_owned());
             }
             FieldType::Strz => {
                 if let Some(pos) = remaining.iter().position(|&b| b == 0) {
                     let s = String::from_utf8_lossy(&remaining[..pos]);
                     *cursor += pos + 1; // include null terminator
-                    return Ok(format!("\"{}\"", s));
+                    return Ok(s.into_owned());
                 } else {
                     // No null terminator found, use remaining as string
                     let s = String::from_utf8_lossy(remaining);
                     *cursor += remaining.len();
-                    return Ok(format!("\"{}\"", s));
+                    return Ok(s.into_owned());
                 }
             }
             FieldType::Vlq => {
@@ -635,8 +635,8 @@ seq:
         let schema = KeySchema::parse(yaml).unwrap();
         let data = b"hello\0";
         let result = schema.decode(data);
-        // Single field: no field name prefix
-        assert_eq!(result, "\"hello\"");
+        // Single field, string without quotes
+        assert_eq!(result, "hello");
     }
 
     #[test]
