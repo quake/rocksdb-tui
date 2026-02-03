@@ -216,7 +216,7 @@ fn draw_value_view(frame: &mut Frame, app: &mut App, area: Rect) {
     let paragraph = Paragraph::new(lines)
         .block(
             Block::default()
-                .title("Value")
+                .title("Decoded Value")
                 .borders(Borders::ALL)
                 .border_style(border_style),
         )
