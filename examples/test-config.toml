@@ -61,14 +61,39 @@ seq:
 """
 
 # WASM Plugin Configuration
-# Build the plugin: cd crates/demo-parser && cargo build --release --target wasm32-unknown-unknown
+# Build the plugin: cargo build --release --target wasm32-unknown-unknown -p demo-parser
 # Install: cp target/wasm32-unknown-unknown/release/demo_parser.wasm ~/.config/rocksdb-tui/plugins/
 [plugins]
 wasm = ["~/.config/rocksdb-tui/plugins/demo_parser.wasm"]
 
-# Demonstrates WASM plugin with key-based routing
-# Key prefix determines value type: 0x00=Product, 0x01=Customer, 0x02=Transaction
+# ========================================
+# Mode 1: Key-prefix routing (single CF)
+# ========================================
+# All data in one CF, key prefix determines value type:
+# - 0x00: Product
+# - 0x01: Customer  
+# - 0x02: Transaction
 [[column_families]]
 name = "demo"
 key_schema = "hex"
 value_format = "demo"
+
+# ========================================
+# Mode 2: Format-based routing (multi CF)
+# ========================================
+# Each CF has its own format, no key prefix needed
+
+[[column_families]]
+name = "products"
+key_schema = "u4le"
+value_format = "demo.Product"
+
+[[column_families]]
+name = "customers"
+key_schema = "u4le"
+value_format = "demo.Customer"
+
+[[column_families]]
+name = "transactions"
+key_schema = "u4le"
+value_format = "demo.Transaction"

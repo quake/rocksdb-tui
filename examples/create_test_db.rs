@@ -1,3 +1,4 @@
+use demo_types::{Customer, CustomerTier, Product, Transaction};
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage};
 use rocksdb::{Options, DB};
@@ -15,8 +16,22 @@ fn main() {
     opts.create_if_missing(true);
     opts.create_missing_column_families(true);
 
+    // Column families:
+    // - demo: single CF with key-prefix routing (Mode 1)
+    // - products, customers, transactions: separate CFs with format-based routing (Mode 2)
     let cfs = vec![
-        "default", "users", "logs", "cache", "orders", "accounts", "blocks", "metrics", "demo",
+        "default",
+        "users",
+        "logs",
+        "cache",
+        "orders",
+        "accounts",
+        "blocks",
+        "metrics",
+        "demo",         // Mode 1: key-prefix routing
+        "products",     // Mode 2: format-based
+        "customers",    // Mode 2: format-based
+        "transactions", // Mode 2: format-based
     ];
     let db = DB::open_cf(&opts, path, &cfs).unwrap();
 
@@ -220,82 +235,92 @@ fn main() {
         db.put_cf(&metrics_cf, key.as_bytes(), &data).unwrap();
     }
 
-    // Add demo data for WASM plugin demonstration
-    // Uses key-prefix routing: 0x00=Product, 0x01=Customer, 0x02=Transaction
+    // ========================================
+    // Mode 1: Key-prefix routing (single CF)
+    // ========================================
+    // All data in one CF, key prefix determines value type
+    // Key: [prefix_byte][id_bytes...]
+    // Value: bincode-serialized struct
     let demo_cf = db.cf_handle("demo").unwrap();
 
     // Products (prefix 0x00)
-    // Format: id (4 bytes u32 LE) | name_len (1 byte) | name | price (8 bytes f64 LE) | in_stock (1 byte)
     let products = vec![
-        (1u32, "Widget", 9.99f64, true),
-        (2u32, "Gadget", 24.99f64, true),
-        (3u32, "Thingamajig", 4.99f64, false),
-        (4u32, "Doohickey", 14.99f64, true),
+        Product::new(1, "Widget", 9.99, true),
+        Product::new(2, "Gadget", 24.99, true),
+        Product::new(3, "Thingamajig", 4.99, false),
+        Product::new(4, "Doohickey", 14.99, true),
     ];
-    for (id, name, price, in_stock) in products {
-        let mut key = vec![0x00]; // Product prefix
-        key.extend_from_slice(&id.to_le_bytes());
-
-        let mut value = Vec::new();
-        value.extend_from_slice(&id.to_le_bytes());
-        value.push(name.len() as u8);
-        value.extend_from_slice(name.as_bytes());
-        value.extend_from_slice(&price.to_le_bytes());
-        value.push(if in_stock { 1 } else { 0 });
-
-        db.put_cf(&demo_cf, &key, &value).unwrap();
+    for product in &products {
+        db.put_cf(&demo_cf, &product.key_with_prefix(), &product.encode())
+            .unwrap();
     }
 
     // Customers (prefix 0x01)
-    // Format: id (4 bytes u32 LE) | name_len (1 byte) | name | email_len (1 byte) | email | tier (1 byte)
     let customers = vec![
-        (101u32, "Alice", "alice@example.com", 2u8),     // Gold
-        (102u32, "Bob", "bob@example.com", 1u8),         // Silver
-        (103u32, "Charlie", "charlie@example.com", 3u8), // Platinum
-        (104u32, "Diana", "diana@example.com", 0u8),     // Bronze
+        Customer::new(101, "Alice", "alice@example.com", CustomerTier::Gold),
+        Customer::new(102, "Bob", "bob@example.com", CustomerTier::Silver),
+        Customer::new(
+            103,
+            "Charlie",
+            "charlie@example.com",
+            CustomerTier::Platinum,
+        ),
+        Customer::new(104, "Diana", "diana@example.com", CustomerTier::Bronze),
     ];
-    for (id, name, email, tier) in customers {
-        let mut key = vec![0x01]; // Customer prefix
-        key.extend_from_slice(&id.to_le_bytes());
-
-        let mut value = Vec::new();
-        value.extend_from_slice(&id.to_le_bytes());
-        value.push(name.len() as u8);
-        value.extend_from_slice(name.as_bytes());
-        value.push(email.len() as u8);
-        value.extend_from_slice(email.as_bytes());
-        value.push(tier);
-
-        db.put_cf(&demo_cf, &key, &value).unwrap();
+    for customer in &customers {
+        db.put_cf(&demo_cf, &customer.key_with_prefix(), &customer.encode())
+            .unwrap();
     }
 
     // Transactions (prefix 0x02)
-    // Format: id (4 bytes u32 LE) | customer_id (4 bytes) | product_id (4 bytes) | quantity (2 bytes u16 LE) | timestamp (8 bytes u64 LE)
     let transactions = vec![
-        (1001u32, 101u32, 1u32, 2u16, 1704067200u64), // Alice bought 2 Widgets
-        (1002u32, 102u32, 2u32, 1u16, 1704153600u64), // Bob bought 1 Gadget
-        (1003u32, 101u32, 4u32, 3u16, 1704240000u64), // Alice bought 3 Doohickeys
-        (1004u32, 103u32, 1u32, 5u16, 1704326400u64), // Charlie bought 5 Widgets
-        (1005u32, 104u32, 3u32, 1u16, 1704412800u64), // Diana bought 1 Thingamajig
+        Transaction::new(1001, 101, 1, 2, 1704067200), // Alice bought 2 Widgets
+        Transaction::new(1002, 102, 2, 1, 1704153600), // Bob bought 1 Gadget
+        Transaction::new(1003, 101, 4, 3, 1704240000), // Alice bought 3 Doohickeys
+        Transaction::new(1004, 103, 1, 5, 1704326400), // Charlie bought 5 Widgets
+        Transaction::new(1005, 104, 3, 1, 1704412800), // Diana bought 1 Thingamajig
     ];
-    for (id, customer_id, product_id, quantity, timestamp) in transactions {
-        let mut key = vec![0x02]; // Transaction prefix
-        key.extend_from_slice(&id.to_le_bytes());
+    for tx in &transactions {
+        db.put_cf(&demo_cf, &tx.key_with_prefix(), &tx.encode())
+            .unwrap();
+    }
 
-        let mut value = Vec::new();
-        value.extend_from_slice(&id.to_le_bytes());
-        value.extend_from_slice(&customer_id.to_le_bytes());
-        value.extend_from_slice(&product_id.to_le_bytes());
-        value.extend_from_slice(&quantity.to_le_bytes());
-        value.extend_from_slice(&timestamp.to_le_bytes());
+    // ========================================
+    // Mode 2: Format-based routing (multi CF)
+    // ========================================
+    // Each CF has its own format, no key prefix needed
+    // Key: [id_bytes...] (no prefix)
+    // Value: bincode-serialized struct
 
-        db.put_cf(&demo_cf, &key, &value).unwrap();
+    // Products CF
+    let products_cf = db.cf_handle("products").unwrap();
+    for product in &products {
+        db.put_cf(&products_cf, &product.key(), &product.encode())
+            .unwrap();
+    }
+
+    // Customers CF
+    let customers_cf = db.cf_handle("customers").unwrap();
+    for customer in &customers {
+        db.put_cf(&customers_cf, &customer.key(), &customer.encode())
+            .unwrap();
+    }
+
+    // Transactions CF
+    let transactions_cf = db.cf_handle("transactions").unwrap();
+    for tx in &transactions {
+        db.put_cf(&transactions_cf, &tx.key(), &tx.encode())
+            .unwrap();
     }
 
     println!("Test database created at {:?}", path);
     println!("Column families: {:?}", cfs);
-    println!("\nTo use with WASM plugin, first build the demo-parser:");
-    println!("  cd crates/demo-parser && cargo build --release --target wasm32-unknown-unknown");
+    println!("\nDemo plugin modes:");
+    println!("  - Mode 1 (key-prefix): 'demo' CF with value_format = \"demo\"");
+    println!("  - Mode 2 (format-based): 'products/customers/transactions' CFs");
+    println!("    with value_format = \"demo.Product/demo.Customer/demo.Transaction\"");
+    println!("\nTo use with WASM plugin:");
+    println!("  cargo build --release --target wasm32-unknown-unknown -p demo-parser");
     println!("  mkdir -p ~/.config/rocksdb-tui/plugins");
     println!("  cp target/wasm32-unknown-unknown/release/demo_parser.wasm ~/.config/rocksdb-tui/plugins/");
 }

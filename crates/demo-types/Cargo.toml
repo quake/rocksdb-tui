@@ -1,0 +1,9 @@
+[package]
+name = "demo-types"
+version = "0.1.0"
+edition = "2021"
+description = "Demo third-party library defining types for rocksdb-tui plugin example"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+bincode = "1"
