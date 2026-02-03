@@ -311,11 +311,11 @@ impl KeySchema {
 }
 
 /// Registry for compiled key schemas, with caching and preset support
-pub struct KeySchemaRegistry {
+pub struct SchemaRegistry {
     schemas: std::collections::HashMap<String, KeySchema>,
 }
 
-impl KeySchemaRegistry {
+impl SchemaRegistry {
     pub fn new() -> Self {
         Self {
             schemas: std::collections::HashMap::new(),
@@ -409,7 +409,7 @@ impl KeySchemaRegistry {
     }
 }
 
-impl Default for KeySchemaRegistry {
+impl Default for SchemaRegistry {
     fn default() -> Self {
         Self::new()
     }
@@ -656,7 +656,7 @@ seq:
 
     #[test]
     fn test_registry_preset_u8le() {
-        let mut registry = KeySchemaRegistry::new();
+        let mut registry = SchemaRegistry::new();
         let schema = registry
             .get_schema("test", Some("u8le"), None)
             .unwrap()
@@ -668,14 +668,14 @@ seq:
 
     #[test]
     fn test_registry_preset_hex() {
-        assert!(KeySchemaRegistry::is_hex_preset(Some("hex")));
-        assert!(!KeySchemaRegistry::is_hex_preset(Some("u8le")));
-        assert!(!KeySchemaRegistry::is_hex_preset(None));
+        assert!(SchemaRegistry::is_hex_preset(Some("hex")));
+        assert!(!SchemaRegistry::is_hex_preset(Some("u8le")));
+        assert!(!SchemaRegistry::is_hex_preset(None));
     }
 
     #[test]
     fn test_registry_caches_schema() {
-        let mut registry = KeySchemaRegistry::new();
+        let mut registry = SchemaRegistry::new();
         let yaml = r#"
 seq:
   - id: num

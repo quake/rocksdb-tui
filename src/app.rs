@@ -1,8 +1,6 @@
 use crate::config::{ColumnFamilyConfig, Config, ValueFormat};
 use crate::db::SecondaryDb;
-use crate::parser::{
-    parse_key_hex, parse_value, KeySchemaRegistry, MoleculeRegistry, ProtoRegistry,
-};
+use crate::parser::{parse_key_hex, parse_value, MoleculeRegistry, ProtoRegistry, SchemaRegistry};
 use anyhow::Result;
 
 const PAGE_SIZE: usize = 100;
@@ -28,8 +26,8 @@ pub struct App {
     pub should_quit: bool,
     pub proto_registry: ProtoRegistry,
     pub molecule_registry: MoleculeRegistry,
-    pub key_schema_registry: KeySchemaRegistry,
-    pub value_schema_registry: KeySchemaRegistry,
+    pub key_schema_registry: SchemaRegistry,
+    pub value_schema_registry: SchemaRegistry,
     pub status_message: Option<String>,
 }
 
@@ -49,8 +47,8 @@ impl App {
             should_quit: false,
             proto_registry: ProtoRegistry::new(),
             molecule_registry: MoleculeRegistry::new(),
-            key_schema_registry: KeySchemaRegistry::new(),
-            value_schema_registry: KeySchemaRegistry::new(),
+            key_schema_registry: SchemaRegistry::new(),
+            value_schema_registry: SchemaRegistry::new(),
             status_message: None,
         };
         app.load_keys()?;
@@ -182,7 +180,7 @@ impl App {
 
         let formatted = if let Some(ref config) = cf_config {
             // Check for hex preset first
-            if KeySchemaRegistry::is_hex_preset(config.key_schema.as_deref()) {
+            if SchemaRegistry::is_hex_preset(config.key_schema.as_deref()) {
                 return None; // hex is already shown in the list, no need to show again
             }
 

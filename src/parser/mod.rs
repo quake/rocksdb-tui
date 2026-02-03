@@ -5,7 +5,7 @@ pub mod protobuf;
 mod value;
 
 pub use key::parse_key_hex;
-pub use key_schema::KeySchemaRegistry;
+pub use key_schema::SchemaRegistry;
 pub use molecule::MoleculeRegistry;
 pub use protobuf::ProtoRegistry;
 pub use value::parse_value;
