@@ -68,6 +68,27 @@ fn main() {
         db.put_cf(&logs_cf, &key, value.as_bytes()).unwrap();
     }
 
+    // Add logs with string prefix keys for testing search pagination
+    // 150 "error:" entries, 150 "warn:" entries, 150 "info:" entries
+    for i in 0u64..150 {
+        let key = format!("error:{:05}", i);
+        let value = format!("Error log entry {}", i);
+        db.put_cf(&logs_cf, key.as_bytes(), value.as_bytes())
+            .unwrap();
+    }
+    for i in 0u64..150 {
+        let key = format!("warn:{:05}", i);
+        let value = format!("Warning log entry {}", i);
+        db.put_cf(&logs_cf, key.as_bytes(), value.as_bytes())
+            .unwrap();
+    }
+    for i in 0u64..150 {
+        let key = format!("info:{:05}", i);
+        let value = format!("Info log entry {}", i);
+        db.put_cf(&logs_cf, key.as_bytes(), value.as_bytes())
+            .unwrap();
+    }
+
     // Add MessagePack data to cache CF with binary hash keys (demonstrates hex key_schema)
     let cache_cf = db.cf_handle("cache").unwrap();
     let cache_data = vec![

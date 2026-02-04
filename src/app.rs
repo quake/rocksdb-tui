@@ -92,11 +92,12 @@ impl App {
         if let Some(cf) = self.current_cf() {
             let cf = cf.to_string();
             self.keys = if let Some(ref prefix) = self.search_prefix {
-                self.db.iter_keys_with_prefix(&cf, prefix, PAGE_SIZE)?
+                self.db
+                    .iter_keys_with_prefix(&cf, prefix, None, PAGE_SIZE)?
             } else {
                 self.db.iter_keys(&cf, None, PAGE_SIZE)?
             };
-            self.has_more_keys = self.keys.len() == PAGE_SIZE && self.search_prefix.is_none();
+            self.has_more_keys = self.keys.len() == PAGE_SIZE;
             self.key_index = 0;
         }
         Ok(())
@@ -109,7 +110,12 @@ impl App {
         if let Some(cf) = self.current_cf() {
             let cf = cf.to_string();
             if let Some((last_key, _)) = self.keys.last() {
-                let more = self.db.iter_keys(&cf, Some(last_key), PAGE_SIZE)?;
+                let more = if let Some(ref prefix) = self.search_prefix {
+                    self.db
+                        .iter_keys_with_prefix(&cf, prefix, Some(last_key), PAGE_SIZE)?
+                } else {
+                    self.db.iter_keys(&cf, Some(last_key), PAGE_SIZE)?
+                };
                 self.has_more_keys = more.len() == PAGE_SIZE;
                 self.keys.extend(more);
             }

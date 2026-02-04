@@ -126,6 +126,7 @@ impl SecondaryDb {
         &self,
         cf_name: &str,
         prefix: &[u8],
+        start_key: Option<&[u8]>,
         limit: usize,
     ) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
         let cf = self
@@ -133,12 +134,21 @@ impl SecondaryDb {
             .cf_handle(cf_name)
             .with_context(|| format!("Column family not found: {}", cf_name))?;
 
+        // Start from start_key if provided, otherwise from prefix
+        let from_key = start_key.unwrap_or(prefix);
         let iter = self.db.iterator_cf(
             &cf,
-            rocksdb::IteratorMode::From(prefix, rocksdb::Direction::Forward),
+            rocksdb::IteratorMode::From(from_key, rocksdb::Direction::Forward),
         );
 
         let mut results = Vec::with_capacity(limit);
+        let mut iter = iter.into_iter();
+
+        // Skip start_key itself if provided
+        if start_key.is_some() {
+            iter.next();
+        }
+
         for item in iter.take(limit) {
             let (k, v) = item?;
             if !k.starts_with(prefix) {
