@@ -48,3 +48,9 @@ cp target/wasm32-unknown-unknown/release/fiber_parser.wasm ../
 - All Fiber data types use bincode serialization
 - The plugin routes parsing based on key prefix byte
 - Complex types show metadata; simple types are fully deserialized
+
+## About fiber-types
+
+The `fiber-types/` directory contains simplified type definitions for demonstration purposes only. Fiber uses complex `serde_with` attributes (e.g., `SliceHex`, `EntityHex`, `PubNonceAsBytes`) that significantly affect bincode serialization, making accurate type replication non-trivial.
+
+**Future plan**: Once Fiber extracts an official `fiber-types` crate from the main repository, this local `fiber-types/` can be replaced with a dependency on the official crate, ensuring accurate and maintainable type definitions.
