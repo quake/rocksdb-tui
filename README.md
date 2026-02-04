@@ -19,7 +19,7 @@ A TUI browser for RocksDB databases using Secondary mode (read-only, safe).
   - **JSON** - Pretty-printed JSON
   - **MessagePack** - Binary msgpack to JSON
   - **Protobuf** - Dynamic protobuf decoding (no protoc required)
-  - **Molecule** - CKB Molecule format decoding
+  - **Molecule** - Molecule format decoding
   - **WASM Plugins** - Custom formats via WebAssembly plugins
 
 ## Quick Start
@@ -90,7 +90,7 @@ proto_file = "protos/order.proto"
 proto_message = "Order"
 proto_includes = ["protos/"]  # optional: additional import paths
 
-# Molecule values (CKB format)
+# Molecule values
 [[column_families]]
 name = "accounts"
 key_schema = "string"
