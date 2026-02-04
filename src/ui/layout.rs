@@ -75,12 +75,30 @@ fn draw_key_list(frame: &mut Frame, app: &mut App, area: Rect) {
     let formatted_key = app.formatted_current_key();
     let has_tooltip = formatted_key.is_some();
 
+    // Calculate tooltip height based on content
+    // Account for borders (2 lines) + content lines
+    let tooltip_height = if let Some(ref key) = formatted_key {
+        // Calculate how many lines needed for the content
+        // Consider the width available (30% of screen minus borders)
+        let available_width = area.width.saturating_sub(2) as usize; // subtract border
+        let content_len = key.len();
+        let lines_needed = if available_width > 0 {
+            (content_len / available_width) + 1
+        } else {
+            1
+        };
+        // Minimum 3 lines (1 content + 2 border), max 6 lines to not take too much space
+        (lines_needed + 2).min(6).max(3) as u16
+    } else {
+        3
+    };
+
     // Split area for search box, optional tooltip, and key list
     let constraints = if has_tooltip {
         vec![
-            Constraint::Length(3), // Search
-            Constraint::Length(3), // Decoded Key tooltip
-            Constraint::Min(0),    // Keys
+            Constraint::Length(3),              // Search
+            Constraint::Length(tooltip_height), // Decoded Key tooltip (dynamic)
+            Constraint::Min(0),                 // Keys
         ]
     } else {
         vec![
@@ -128,7 +146,8 @@ fn draw_key_list(frame: &mut Frame, app: &mut App, area: Rect) {
                     .title("Decoded Key")
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(Color::Cyan)),
-            );
+            )
+            .wrap(Wrap { trim: false }); // Enable text wrapping
         frame.render_widget(tooltip, tooltip_area.unwrap());
     }
 

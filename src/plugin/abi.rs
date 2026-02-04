@@ -18,6 +18,13 @@
 //! Parse binary data according to the specified format.
 //! The key is provided so plugins can use key prefixes to determine the value type.
 //! Returns a pointer-length pair to a JSON string, or 0 on failure.
+//!
+//! ## Optional Exports
+//!
+//! ### `parse_key(format_ptr: u32, format_len: u32, key_ptr: u32, key_len: u32) -> u64`
+//! Parse a key according to the specified format.
+//! Returns a pointer-length pair to a JSON string representing the decoded key, or 0 on failure.
+//! This export is optional; plugins that don't export it will not support key parsing.
 
 /// Symbol name for memory allocation function
 pub const EXPORT_ALLOC: &str = "alloc";
@@ -28,8 +35,11 @@ pub const EXPORT_DEALLOC: &str = "dealloc";
 /// Symbol name for getting supported formats
 pub const EXPORT_GET_FORMATS: &str = "get_formats";
 
-/// Symbol name for parsing data
+/// Symbol name for parsing data (value)
 pub const EXPORT_PARSE: &str = "parse";
+
+/// Symbol name for parsing key (optional)
+pub const EXPORT_PARSE_KEY: &str = "parse_key";
 
 /// Symbol name for WASM memory
 pub const EXPORT_MEMORY: &str = "memory";

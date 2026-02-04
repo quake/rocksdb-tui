@@ -15,6 +15,8 @@ struct WasmPlugin {
     alloc: TypedFunc<u32, u32>,
     dealloc: TypedFunc<(u32, u32), ()>,
     parse: TypedFunc<(u32, u32, u32, u32, u32, u32), u64>,
+    /// Optional parse_key function for decoding keys
+    parse_key: Option<TypedFunc<(u32, u32, u32, u32), u64>>,
 }
 
 /// Manager for loading and calling WASM plugins
@@ -70,6 +72,11 @@ impl WasmPluginManager {
             .get_typed_func::<(u32, u32, u32, u32, u32, u32), u64>(&mut store, EXPORT_PARSE)
             .with_context(|| "Plugin missing 'parse' export")?;
 
+        // Optional: parse_key function for decoding keys
+        let parse_key = instance
+            .get_typed_func::<(u32, u32, u32, u32), u64>(&mut store, EXPORT_PARSE_KEY)
+            .ok();
+
         // Call get_formats to get supported format list
         let formats_packed = get_formats.call(&mut store, ())?;
         let formats_json = Self::read_string_result(&store, &memory, formats_packed)?;
@@ -88,6 +95,7 @@ impl WasmPluginManager {
             alloc,
             dealloc,
             parse,
+            parse_key,
         });
 
         // Free the formats string in WASM memory
@@ -107,11 +115,13 @@ impl WasmPluginManager {
     }
 
     /// Get list of all supported formats
+    #[allow(dead_code)]
     pub fn supported_formats(&self) -> Vec<&str> {
         self.format_map.keys().map(|s| s.as_str()).collect()
     }
 
     /// Check if a format is supported by any plugin
+    #[allow(dead_code)]
     pub fn supports_format(&self, format: &str) -> bool {
         self.format_map.contains_key(format)
     }
@@ -128,35 +138,55 @@ impl WasmPluginManager {
         Self::parse_with_plugin(plugin, format, key, value).ok()
     }
 
+    /// Parse key using the appropriate plugin
+    /// Returns the parsed JSON string, or None if format is not supported,
+    /// the plugin doesn't support parse_key, or parsing fails
+    pub fn parse_key(&self, format: &str, key: &[u8]) -> Option<String> {
+        let plugin_idx = *self.format_map.get(format)?;
+
+        let mut plugins = self.plugins.borrow_mut();
+        let plugin = &mut plugins[plugin_idx];
+
+        // Check if plugin supports parse_key
+        if plugin.parse_key.is_none() {
+            return None;
+        }
+
+        Self::parse_key_with_plugin(plugin, format, key).ok()
+    }
+
     fn parse_with_plugin(
         plugin: &mut WasmPlugin,
         format: &str,
         key: &[u8],
         value: &[u8],
     ) -> Result<String> {
-        // Allocate and write format string
         let format_bytes = format.as_bytes();
-        let format_ptr = plugin
-            .alloc
-            .call(&mut plugin.store, format_bytes.len() as u32)?;
-        plugin
-            .memory
-            .write(&mut plugin.store, format_ptr as usize, format_bytes)?;
 
-        // Allocate and write key
-        let key_ptr = plugin.alloc.call(&mut plugin.store, key.len() as u32)?;
-        plugin
-            .memory
-            .write(&mut plugin.store, key_ptr as usize, key)?;
+        // Allocate format string
+        let format_ptr = Self::alloc_and_write(plugin, format_bytes)?;
 
-        // Allocate and write value
-        let value_ptr = plugin.alloc.call(&mut plugin.store, value.len() as u32)?;
-        plugin
-            .memory
-            .write(&mut plugin.store, value_ptr as usize, value)?;
+        // Allocate key (with cleanup on failure)
+        let key_ptr = match Self::alloc_and_write(plugin, key) {
+            Ok(ptr) => ptr,
+            Err(e) => {
+                Self::dealloc_if_valid(plugin, format_ptr, format_bytes.len());
+                return Err(e);
+            }
+        };
+
+        // Allocate value (with cleanup on failure)
+        let value_ptr = match Self::alloc_and_write(plugin, value) {
+            Ok(ptr) => ptr,
+            Err(e) => {
+                Self::dealloc_if_valid(plugin, format_ptr, format_bytes.len());
+                Self::dealloc_if_valid(plugin, key_ptr, key.len());
+                return Err(e);
+            }
+        };
 
         // Call parse(format_ptr, format_len, key_ptr, key_len, value_ptr, value_len)
-        let result = plugin.parse.call(
+        let call_result = plugin.parse.call(
             &mut plugin.store,
             (
                 format_ptr,
@@ -166,18 +196,14 @@ impl WasmPluginManager {
                 value_ptr,
                 value.len() as u32,
             ),
-        )?;
+        );
 
-        // Free input memory
-        let _ = plugin
-            .dealloc
-            .call(&mut plugin.store, (format_ptr, format_bytes.len() as u32));
-        let _ = plugin
-            .dealloc
-            .call(&mut plugin.store, (key_ptr, key.len() as u32));
-        let _ = plugin
-            .dealloc
-            .call(&mut plugin.store, (value_ptr, value.len() as u32));
+        // Always free input memory
+        Self::dealloc_if_valid(plugin, format_ptr, format_bytes.len());
+        Self::dealloc_if_valid(plugin, key_ptr, key.len());
+        Self::dealloc_if_valid(plugin, value_ptr, value.len());
+
+        let result = call_result?;
 
         // Read result
         if result == 0 {
@@ -193,6 +219,85 @@ impl WasmPluginManager {
             .call(&mut plugin.store, (result_ptr, result_len));
 
         Ok(json)
+    }
+
+    fn parse_key_with_plugin(plugin: &mut WasmPlugin, format: &str, key: &[u8]) -> Result<String> {
+        // Check if plugin supports parse_key first (without borrowing)
+        if plugin.parse_key.is_none() {
+            return Err(anyhow!("Plugin does not support parse_key"));
+        }
+
+        let format_bytes = format.as_bytes();
+
+        // Allocate format string
+        let format_ptr = Self::alloc_and_write(plugin, format_bytes)?;
+
+        // Allocate key (with cleanup on failure)
+        let key_ptr = match Self::alloc_and_write(plugin, key) {
+            Ok(ptr) => ptr,
+            Err(e) => {
+                Self::dealloc_if_valid(plugin, format_ptr, format_bytes.len());
+                return Err(e);
+            }
+        };
+
+        // Call parse_key(format_ptr, format_len, key_ptr, key_len)
+        // Safe to unwrap because we checked is_none() above
+        let call_result = plugin.parse_key.as_ref().unwrap().call(
+            &mut plugin.store,
+            (
+                format_ptr,
+                format_bytes.len() as u32,
+                key_ptr,
+                key.len() as u32,
+            ),
+        );
+
+        // Always free input memory
+        Self::dealloc_if_valid(plugin, format_ptr, format_bytes.len());
+        Self::dealloc_if_valid(plugin, key_ptr, key.len());
+
+        let result = call_result?;
+
+        // Read result
+        if result == 0 {
+            return Err(anyhow!("Plugin parse_key returned null"));
+        }
+
+        let json = Self::read_string_result(&plugin.store, &plugin.memory, result)?;
+
+        // Free result memory
+        let (result_ptr, result_len) = unpack_ptr_len(result);
+        let _ = plugin
+            .dealloc
+            .call(&mut plugin.store, (result_ptr, result_len));
+
+        Ok(json)
+    }
+
+    /// Allocate memory and write data, handling zero-length case
+    fn alloc_and_write(plugin: &mut WasmPlugin, data: &[u8]) -> Result<u32> {
+        if data.is_empty() {
+            return Ok(0); // No allocation needed for empty data
+        }
+
+        let ptr = plugin.alloc.call(&mut plugin.store, data.len() as u32)?;
+        if ptr == 0 {
+            return Err(anyhow!(
+                "Plugin alloc returned null for {} bytes",
+                data.len()
+            ));
+        }
+
+        plugin.memory.write(&mut plugin.store, ptr as usize, data)?;
+        Ok(ptr)
+    }
+
+    /// Deallocate memory only if pointer is valid (non-zero)
+    fn dealloc_if_valid(plugin: &mut WasmPlugin, ptr: u32, len: usize) {
+        if ptr != 0 && len > 0 {
+            let _ = plugin.dealloc.call(&mut plugin.store, (ptr, len as u32));
+        }
     }
 
     fn read_string_result(store: &Store<()>, memory: &Memory, packed: u64) -> Result<String> {

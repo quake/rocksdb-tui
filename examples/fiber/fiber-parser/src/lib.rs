@@ -137,6 +137,122 @@ fn fiber_parser(format: &str, key: &[u8], value: &[u8]) -> Result<String, String
     }
 }
 
+/// Parse key into human-readable JSON format
+fn fiber_key_parser(format: &str, key: &[u8]) -> Result<String, String> {
+    if format != "fiber" {
+        return Err(format!("Unknown format: {}", format));
+    }
+
+    if key.is_empty() {
+        return Err("Empty key".to_string());
+    }
+
+    let prefix_byte = key[0];
+    let key_data = &key[1..];
+
+    match prefix_byte {
+        prefix::CHANNEL_ACTOR_STATE => Ok(serde_json::json!({
+            "type": "ChannelActorState",
+            "channel_id": hex::encode(key_data)
+        })
+        .to_string()),
+
+        prefix::PEER_ID_NETWORK_ACTOR_STATE => Ok(serde_json::json!({
+            "type": "PersistentNetworkActorState",
+            "peer_id": hex::encode(key_data)
+        })
+        .to_string()),
+
+        prefix::CKB_INVOICE => Ok(serde_json::json!({
+            "type": "CkbInvoice",
+            "payment_hash": hex::encode(key_data)
+        })
+        .to_string()),
+
+        prefix::PREIMAGE => Ok(serde_json::json!({
+            "type": "Preimage",
+            "payment_hash": hex::encode(key_data)
+        })
+        .to_string()),
+
+        prefix::CKB_INVOICE_STATUS => Ok(serde_json::json!({
+            "type": "CkbInvoiceStatus",
+            "payment_hash": hex::encode(key_data)
+        })
+        .to_string()),
+
+        prefix::PEER_ID_CHANNEL_ID => {
+            // Key: PeerId (variable) + Hash256 (32 bytes)
+            if key_data.len() > 32 {
+                let peer_id_len = key_data.len() - 32;
+                Ok(serde_json::json!({
+                    "type": "ChannelState",
+                    "peer_id": hex::encode(&key_data[..peer_id_len]),
+                    "channel_id": hex::encode(&key_data[peer_id_len..])
+                })
+                .to_string())
+            } else {
+                Ok(serde_json::json!({
+                    "type": "ChannelState",
+                    "key_data": hex::encode(key_data)
+                })
+                .to_string())
+            }
+        }
+
+        prefix::CHANNEL_OUTPOINT_CHANNEL_ID => Ok(serde_json::json!({
+            "type": "OutPointToChannelId",
+            "outpoint": hex::encode(key_data)
+        })
+        .to_string()),
+
+        prefix::BROADCAST_MESSAGE => Ok(serde_json::json!({
+            "type": "BroadcastMessage",
+            "cursor": hex::encode(key_data)
+        })
+        .to_string()),
+
+        prefix::BROADCAST_MESSAGE_TIMESTAMP => Ok(serde_json::json!({
+            "type": "BroadcastMessageTimestamp",
+            "message_id": hex::encode(key_data)
+        })
+        .to_string()),
+
+        prefix::PAYMENT_SESSION => Ok(serde_json::json!({
+            "type": "PaymentSession",
+            "payment_hash": hex::encode(key_data)
+        })
+        .to_string()),
+
+        prefix::PAYMENT_HISTORY_TIMED_RESULT => {
+            // Key: OutPoint + Direction
+            Ok(serde_json::json!({
+                "type": "PaymentHistoryTimedResult",
+                "key_data": hex::encode(key_data)
+            })
+            .to_string())
+        }
+
+        prefix::PAYMENT_CUSTOM_RECORD => Ok(serde_json::json!({
+            "type": "PaymentCustomRecords",
+            "payment_hash": hex::encode(key_data)
+        })
+        .to_string()),
+
+        prefix::ATTEMPT => Ok(serde_json::json!({
+            "type": "Attempt",
+            "key_data": hex::encode(key_data)
+        })
+        .to_string()),
+
+        _ => Ok(serde_json::json!({
+            "unknown_prefix": format!("0x{:02x}", prefix_byte),
+            "key_data": hex::encode(key_data)
+        })
+        .to_string()),
+    }
+}
+
 // Simple hex encoding
 mod hex {
     const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
@@ -153,5 +269,6 @@ mod hex {
 
 export_plugin! {
     formats: ["fiber"],
-    parse: fiber_parser
+    parse: fiber_parser,
+    parse_key: fiber_key_parser
 }

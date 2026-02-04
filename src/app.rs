@@ -193,10 +193,18 @@ impl App {
 
         let cf_config = self.current_cf_config().cloned();
 
-        let formatted = if let Some(ref config) = cf_config {
-            // Check for hex preset first
+        if let Some(ref config) = cf_config {
+            // Try plugin parse_key first if value_format is Custom
+            // Plugin parse_key takes priority because it understands the key structure
+            if let ValueFormat::Custom(ref format_name) = config.value_format {
+                if let Some(parsed) = self.plugin_manager.parse_key(format_name, &key_data) {
+                    return Some(parsed);
+                }
+            }
+
+            // Check for hex preset - if no plugin parse_key, hex is already shown in the list
             if SchemaRegistry::is_hex_preset(config.key_schema.as_deref()) {
-                return None; // hex is already shown in the list, no need to show again
+                return None;
             }
 
             // Try to get/compile schema
@@ -209,20 +217,16 @@ impl App {
                     let decoded = schema.decode(&key_data);
                     // If decoded is same as hex, don't show
                     let hex = parse_key_hex(&key_data);
-                    if decoded == hex {
-                        None
-                    } else {
-                        Some(decoded)
+                    if decoded != hex {
+                        return Some(decoded);
                     }
                 }
-                Ok(None) => None,
-                Err(_) => None,
+                Ok(None) => {}
+                Err(_) => {}
             }
-        } else {
-            None
-        };
+        }
 
-        formatted
+        None
     }
 
     pub fn current_value(&mut self) -> Option<(String, bool)> {

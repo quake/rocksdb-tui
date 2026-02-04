@@ -53,7 +53,57 @@ fn demo_parser(format: &str, key: &[u8], value: &[u8]) -> Result<String, String>
     }
 }
 
+/// Parse key into human-readable JSON format
+fn demo_key_parser(format: &str, key: &[u8]) -> Result<String, String> {
+    match format {
+        // Mode 1: Key format is [prefix: u8][id: u32 LE]
+        "demo" => {
+            if key.is_empty() {
+                return Err("Empty key".to_string());
+            }
+            let prefix_byte = key[0];
+            let type_name = match prefix_byte {
+                p if p == prefix::PRODUCT => "Product",
+                p if p == prefix::CUSTOMER => "Customer",
+                p if p == prefix::TRANSACTION => "Transaction",
+                p => return Err(format!("Unknown key prefix: 0x{:02x}", p)),
+            };
+
+            // Parse ID from remaining bytes (u32 LE)
+            let id = if key.len() >= 5 {
+                u32::from_le_bytes([key[1], key[2], key[3], key[4]])
+            } else {
+                return Err(format!(
+                    "Key too short: expected 5 bytes, got {}",
+                    key.len()
+                ));
+            };
+
+            Ok(serde_json::json!({
+                "type": type_name,
+                "id": id
+            })
+            .to_string())
+        }
+
+        // Mode 2: Key format is just [id: u32 LE]
+        "demo.Product" | "demo.Customer" | "demo.Transaction" => {
+            if key.len() < 4 {
+                return Err(format!(
+                    "Key too short: expected 4 bytes, got {}",
+                    key.len()
+                ));
+            }
+            let id = u32::from_le_bytes([key[0], key[1], key[2], key[3]]);
+            Ok(serde_json::json!({ "id": id }).to_string())
+        }
+
+        _ => Err(format!("Unknown format: {}", format)),
+    }
+}
+
 export_plugin! {
     formats: ["demo", "demo.Product", "demo.Customer", "demo.Transaction"],
-    parse: demo_parser
+    parse: demo_parser,
+    parse_key: demo_key_parser
 }

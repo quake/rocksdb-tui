@@ -25,25 +25,16 @@ A TUI browser for RocksDB databases using Secondary mode (read-only, safe).
 ## Quick Start
 
 ```bash
-# Build the demo WASM plugin (requires wasm32 target)
-rustup target add wasm32-unknown-unknown
-cd examples/plugin-demo/demo-parser
-cargo build --release --target wasm32-unknown-unknown
-cp target/wasm32-unknown-unknown/release/demo_parser.wasm ../
-cd ../../..
-
 # Create a test database with sample data
 cargo run --example create_test_db
 
-# Run the TUI with the test database
+# Run the TUI with the test database (includes pre-built WASM plugin)
 cargo run -- --db /tmp/rocksdb-tui-test-db --config examples/plugin-demo/test-config.toml
 ```
 
 The test database includes various data formats:
 - **JSON, MessagePack, Protobuf, Molecule** - Built-in parsers
-- **WASM Plugin demo** - Two modes:
-  - `demo` CF: Key-prefix routing (0x00=Product, 0x01=Customer, 0x02=Transaction)
-  - `products/customers/transactions` CFs: Format-based routing (demo.Product, etc.)
+- **WASM Plugin demo** - Custom bincode parser (see [examples/plugin-demo/](examples/plugin-demo/) for details)
 
 ## Installation
 

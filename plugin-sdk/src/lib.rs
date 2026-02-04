@@ -117,7 +117,10 @@ pub fn pack_formats(formats: &[&str]) -> u64 {
 /// so plugins can route parsing based on key prefixes (useful for single-CF
 /// databases that use prefix bytes to distinguish value types).
 ///
-/// # Example
+/// Optionally, you can provide a `parse_key` function to decode keys into
+/// human-readable JSON format.
+///
+/// # Example (without parse_key)
 ///
 /// ```ignore
 /// use rocksdb_tui_plugin_sdk::*;
@@ -139,11 +142,64 @@ pub fn pack_formats(formats: &[&str]) -> u64 {
 ///     parse: my_parser
 /// }
 /// ```
+///
+/// # Example (with parse_key)
+///
+/// ```ignore
+/// use rocksdb_tui_plugin_sdk::*;
+///
+/// fn my_parser(format: &str, key: &[u8], value: &[u8]) -> Result<String, String> {
+///     // ... parse value
+/// }
+///
+/// fn my_key_parser(format: &str, key: &[u8]) -> Result<String, String> {
+///     // Decode key into human-readable JSON
+///     let prefix = key.first().copied().unwrap_or(0);
+///     let id = u32::from_le_bytes(key[1..5].try_into().unwrap_or([0; 4]));
+///     Ok(serde_json::json!({
+///         "type": match prefix { 0 => "TypeA", 1 => "TypeB", _ => "Unknown" },
+///         "id": id
+///     }).to_string())
+/// }
+///
+/// export_plugin! {
+///     formats: ["mydb"],
+///     parse: my_parser,
+///     parse_key: my_key_parser
+/// }
+/// ```
 #[macro_export]
 macro_rules! export_plugin {
+    // With parse_key
     (
         formats: [$($format:literal),* $(,)?],
-        parse: $parse_fn:expr
+        parse: $parse_fn:expr,
+        parse_key: $parse_key_fn:expr $(,)?
+    ) => {
+        $crate::export_plugin!(@internal
+            formats: [$($format),*],
+            parse: $parse_fn,
+            parse_key: $parse_key_fn
+        );
+    };
+
+    // Without parse_key (backward compatible)
+    (
+        formats: [$($format:literal),* $(,)?],
+        parse: $parse_fn:expr $(,)?
+    ) => {
+        $crate::export_plugin!(@internal
+            formats: [$($format),*],
+            parse: $parse_fn,
+            parse_key: @none
+        );
+    };
+
+    // Internal implementation
+    (@internal
+        formats: [$($format:literal),*],
+        parse: $parse_fn:expr,
+        parse_key: @none
     ) => {
         #[no_mangle]
         pub extern "C" fn alloc(size: u32) -> u32 {
@@ -175,6 +231,75 @@ macro_rules! export_plugin {
             let value = unsafe { $crate::read_bytes(value_ptr, value_len) };
 
             match ($parse_fn)(format, key, value) {
+                Ok(json) => $crate::pack_string(&json),
+                Err(e) => {
+                    let error_json = serde_json::json!({
+                        "error": e.to_string()
+                    }).to_string();
+                    $crate::pack_string(&error_json)
+                }
+            }
+        }
+
+        // No parse_key export when not provided
+    };
+
+    (@internal
+        formats: [$($format:literal),*],
+        parse: $parse_fn:expr,
+        parse_key: $parse_key_fn:expr
+    ) => {
+        #[no_mangle]
+        pub extern "C" fn alloc(size: u32) -> u32 {
+            $crate::sdk_alloc(size)
+        }
+
+        #[no_mangle]
+        pub extern "C" fn dealloc(ptr: u32, len: u32) {
+            $crate::sdk_dealloc(ptr, len)
+        }
+
+        #[no_mangle]
+        pub extern "C" fn get_formats() -> u64 {
+            static FORMATS: &[&str] = &[$($format),*];
+            $crate::pack_formats(FORMATS)
+        }
+
+        #[no_mangle]
+        pub extern "C" fn parse(
+            format_ptr: u32,
+            format_len: u32,
+            key_ptr: u32,
+            key_len: u32,
+            value_ptr: u32,
+            value_len: u32,
+        ) -> u64 {
+            let format = unsafe { $crate::read_str(format_ptr, format_len) };
+            let key = unsafe { $crate::read_bytes(key_ptr, key_len) };
+            let value = unsafe { $crate::read_bytes(value_ptr, value_len) };
+
+            match ($parse_fn)(format, key, value) {
+                Ok(json) => $crate::pack_string(&json),
+                Err(e) => {
+                    let error_json = serde_json::json!({
+                        "error": e.to_string()
+                    }).to_string();
+                    $crate::pack_string(&error_json)
+                }
+            }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn parse_key(
+            format_ptr: u32,
+            format_len: u32,
+            key_ptr: u32,
+            key_len: u32,
+        ) -> u64 {
+            let format = unsafe { $crate::read_str(format_ptr, format_len) };
+            let key = unsafe { $crate::read_bytes(key_ptr, key_len) };
+
+            match ($parse_key_fn)(format, key) {
                 Ok(json) => $crate::pack_string(&json),
                 Err(e) => {
                     let error_json = serde_json::json!({
